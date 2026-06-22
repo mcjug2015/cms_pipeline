@@ -1,2 +1,5 @@
 /python-default.lock
 /python-dev.lock
+/.pants.d/
+/.project
+/.pydevproject
