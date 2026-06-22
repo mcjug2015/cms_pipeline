@@ -1,0 +1,7 @@
+[black]
+line-length=120
+
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "ERROR"
