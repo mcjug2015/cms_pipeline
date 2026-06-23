@@ -9,7 +9,6 @@ from src import custom_logging
 from src.crutch_migrations.run_crutch_migrations import run_migrations
 from src.spark_utils import get_spark
 
-
 logger = custom_logging.setup_logging().getLogger(__name__)
 
 

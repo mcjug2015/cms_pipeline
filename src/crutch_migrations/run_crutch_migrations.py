@@ -15,7 +15,6 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from src import custom_logging
 from src.spark_utils import get_spark, is_dbr
 
-
 logger = custom_logging.setup_logging().getLogger(__name__)
 
 
@@ -55,7 +54,9 @@ def migrate(spark, output_folder, cat: str, schema: str):
         autoescape=select_autoescape(),
     )
     all_templates = env.list_templates(filter_func=use_migration_file)
-    logger.info(f"found {len(all_templates)} migrations; first five are {all_templates[:5]};")
+    logger.info(
+        f"found {len(all_templates)} migrations; first five are {all_templates[:5]};"
+    )
     for template_name in all_templates:
         result_sql = apply_template(
             output_folder,

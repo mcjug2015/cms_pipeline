@@ -15,7 +15,7 @@ root_patterns = ["/"]
 [python]
 interpreter_constraints = ["==3.12.3"]
 enable_resolves = true
-resolves = { python-default = "python-default.lock", py-reqs-dev = "python-dev.lock"}
+resolves = { python-default = "src/python-default.lock", py-reqs-dev = "test/python-dev.lock"}
 
 [python-bootstrap]
 search_path = ["<PATH>", "<PYENV>"]

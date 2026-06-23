@@ -3,10 +3,8 @@ import shutil
 
 import pytest
 
-from src.crutch_migrations.run_crutch_migrations import (
-    run_migrations,
-    get_output_folder,
-)
+from src.crutch_migrations.run_crutch_migrations import (get_output_folder,
+                                                         run_migrations)
 from src.spark_utils import get_spark
 
 
