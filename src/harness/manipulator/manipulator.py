@@ -1,21 +1,24 @@
 import argparse
+import datetime
 import os
 import shutil
 import time
 
 from pyspark.sql import SparkSession
-
 from src import custom_logging
-from src.crutch_migrations.run_crutch_migrations import run_migrations
+
+from src.crutch_migrations.run_crutch_migrations import get_ascending_letters_within_minute
 from src.spark_utils import get_spark
+
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
 
 def with_spark(spark: SparkSession, cat: str, schema: str):
+    stuff = f"QQPP{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}"
     spark.sql(
         f"""
-        insert into {cat}.{schema}.test_table(int_id, stuff) values ({time.time_ns()}, 'zoop zoop');
+        insert into {cat}.{schema}.test_table(int_id, stuff) values ({time.time_ns()}, '{stuff}');
     """
     )
     sql_result = spark.sql(
@@ -51,5 +54,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     spark = get_spark()
-    run_migrations(spark, cat=args.cat, schema=args.schema)
     main(spark, cat=args.cat, schema=args.schema)
