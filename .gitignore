@@ -4,3 +4,4 @@
 /.project
 /.pydevproject
 /dist/
+/migrations_out/
