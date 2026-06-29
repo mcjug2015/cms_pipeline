@@ -2,6 +2,7 @@ import argparse
 import datetime
 import os
 import shutil
+import sys
 import time
 
 from pyspark.sql import SparkSession
@@ -30,9 +31,16 @@ def with_spark(spark: SparkSession, cat: str, schema: str):
     ]
 
 
-def main(spark, cat, schema):
+def main(*args, **kwargs):
     logger.info("begin manipulator main")
-    with_spark(spark, cat, schema)
+    cat = kwargs.get("cat", None)
+    schema = kwargs.get("schema", None)
+    if not cat or not schema:
+        cat = sys.argv[1]
+        schema = sys.argv[2]
+    if not cat or not schema:
+        raise ValueError(f"Expecting both cat and schema, got {args}, {kwargs}, {sys.argv};")
+    with_spark(get_spark(), cat, schema)
     logger.info("end manipulator main")
 
 
@@ -53,5 +61,4 @@ if __name__ == "__main__":
         default="default",
     )
     args = parser.parse_args()
-    spark = get_spark()
-    main(spark, cat=args.cat, schema=args.schema)
+    main(cat=args.cat, schema=args.schema)
