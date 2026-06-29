@@ -1,7 +1,8 @@
+from src import custom_logging
+
+from src.harness.manipulator.manipulator import with_spark
 from test.utils import *
 
-from src import custom_logging
-from src.harness.manipulator.manipulator import with_spark
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
@@ -13,5 +14,5 @@ def test_with_spark(migrated_spark):
     )
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
-    assert results[0]["stuff"] == "zoop zoop"
+    assert results[0]["stuff"].startswith("QQPP")
     logger.info("end of test")

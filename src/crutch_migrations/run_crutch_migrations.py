@@ -27,14 +27,18 @@ def apply_template(output_dir, template, cat: str, schema: str):
     return result_sql
 
 
-def get_output_folder(output_parent_path):
+def get_ascending_letters_within_minute():
     micros_since_minute = datetime.datetime.now() - datetime.datetime.now().replace(
         second=0, microsecond=0
     )
     result = str(micros_since_minute.microseconds).translate(
         str.maketrans("0123456789", "ABCDEFGHIJ")
     )
-    folder_name = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{result}"
+    return result
+
+
+def get_output_folder(output_parent_path):
+    folder_name = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}"
     return os.path.join(output_parent_path, folder_name)
 
 
@@ -77,12 +81,12 @@ def run_migrations(spark, cat, schema, output_folder=None):
     migrate(spark, output_folder, cat, schema)
 
 
-def main(cat, schema, use_dbc=False):
+def main(cat, schema):
     shutil.rmtree(
         os.path.join(os.path.dirname(__file__), "..", "..", "spark-warehouse"),
         ignore_errors=True,
     )
-    run_migrations(get_spark(use_dbc=use_dbc), cat, schema)
+    run_migrations(get_spark(), cat, schema)
 
 
 if __name__ == "__main__":
@@ -97,10 +101,5 @@ if __name__ == "__main__":
         help="schema name to use",
         default="default",
     )
-    parser.add_argument(
-        "--use_dbc",
-        help="should use databricks connect or not",
-        default=False,
-    )
     args = parser.parse_args()
-    main(cat=args.cat, schema=args.schema, use_dbc=args.use_dbc)
+    main(cat=args.cat, schema=args.schema)

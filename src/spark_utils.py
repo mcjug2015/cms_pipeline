@@ -12,7 +12,7 @@ def is_dbr():
 
 
 def get_spark(use_dbc=False):
-    if use_dbc:
+    if use_dbc or is_dbr():
         from databricks.connect.session import DatabricksSession
 
         os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"
