@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  test:
+    name: Generate lockfiles & run tests (Pants)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+
+      - name: Initialize Pants
+        uses: pantsbuild/actions/init-pants@v10
+        with:
+          # Bump this number to invalidate the cache.
+          gha-cache-key: cache0-py3.12.3
+          # The Python backend uses named caches keyed on the lockfiles.
+          named-caches-hash: ${{ hashFiles('src/python-default.lock', 'test/python-dev.lock') }}
+
+      - name: Generate lockfiles
+        run: pants generate-lockfiles
+
+      - name: Run tests
+        run: pants test ::
