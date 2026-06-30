@@ -19,7 +19,7 @@ jobs:
           base-branch: main
 
       - name: Generate lockfiles
-        run: ./pants generate-lockfiles
+        run: pants generate-lockfiles
 
       - name: Run Tests
-        run: './pants --keep-sandboxes=always test --output=all --test-force ::'
+        run: 'pants --keep-sandboxes=always test --output=all --test-force ::'
