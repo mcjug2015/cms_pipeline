@@ -28,7 +28,7 @@ jobs:
           named-caches-hash: ${{ hashFiles('src/python-default.lock', 'test/python-dev.lock') }}
 
       - name: Generate lockfiles
-        run: pants generate-lockfiles
+        run: ./pants generate-lockfiles
 
       - name: Run tests
-        run: pants --keep-sandboxes=always test --output=all --test-force ::
+        run: ./pants --keep-sandboxes=always test --output=all --test-force ::
