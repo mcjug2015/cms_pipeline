@@ -31,4 +31,4 @@ jobs:
         run: pants generate-lockfiles
 
       - name: Run tests
-        run: pants test ::
+        run: pants --keep-sandboxes=always test --output=all --test-force ::
