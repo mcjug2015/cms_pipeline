@@ -21,5 +21,8 @@ jobs:
       - name: Generate lockfiles
         run: pants generate-lockfiles
 
+      - name: Validate autoformat
+        run: 'pants --keep-sandboxes=always lint ::'
+
       - name: Run Tests
         run: 'pants --keep-sandboxes=always test --output=all --test-force ::'
