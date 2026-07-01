@@ -3,7 +3,7 @@ import os
 
 def is_dbr():
     try:
-        from pyspark.dbutils import DBUtils
+        from pyspark.dbutils import DBUtils  # noqa: F401
 
         # This will only succeed if the Databricks environment is available
         return True

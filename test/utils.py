@@ -1,7 +1,7 @@
 import os
 import shutil
 
-import pytest
+import pytest  # type: ignore
 
 from src.crutch_migrations.run_crutch_migrations import (get_output_folder,
                                                          run_migrations)

@@ -8,3 +8,4 @@
 /output_dir/
 /.claude/
 /actions-runner/
+/.mypy_cache/
