@@ -17,6 +17,8 @@ python_distribution(
         description="manipulates and profiles various sorts of spark",
     ),
     entry_points={
-        "console_scripts": {"run_manipulator": "src.harness.manipulator.manipulator:main"}
+        "console_scripts": {
+            "run_manipulator": "src.harness.manipulator.manipulator:main"
+        }
     },
 )

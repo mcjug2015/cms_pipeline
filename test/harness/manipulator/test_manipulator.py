@@ -1,8 +1,7 @@
-from src import custom_logging
-
-from src.harness.manipulator.manipulator import with_spark
 from test.utils import *
 
+from src import custom_logging
+from src.harness.manipulator.manipulator import with_spark
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
