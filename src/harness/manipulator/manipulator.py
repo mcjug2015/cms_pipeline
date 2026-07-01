@@ -6,11 +6,11 @@ import sys
 import time
 
 from pyspark.sql import SparkSession
+
+from src import custom_logging
 from src.crutch_migrations.run_crutch_migrations import \
     get_ascending_letters_within_minute
 from src.spark_utils import get_spark
-
-from src import custom_logging
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
