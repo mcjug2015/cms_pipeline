@@ -32,3 +32,12 @@ jobs:
 
       - name: Generate Wheels
         run: pants package src/
+
+      - name: Upload Wheels
+        uses: actions/upload-artifact@main
+        with:
+          name: wheels
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
