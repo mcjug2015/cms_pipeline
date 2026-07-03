@@ -3,7 +3,7 @@ import os
 
 def is_dbr():
     try:
-        from pyspark.dbutils import DBUtils  # noqa: F401
+        from pyspark.dbutils import DBUtils  # type: ignore # noqa: F401
 
         # This will only succeed if the Databricks environment is available
         return True
@@ -13,7 +13,7 @@ def is_dbr():
 
 def get_spark(use_dbc=False):
     if use_dbc or is_dbr():
-        from databricks.connect.session import DatabricksSession
+        from databricks.connect.session import DatabricksSession  # type: ignore
 
         os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"
         return DatabricksSession.builder.getOrCreate()

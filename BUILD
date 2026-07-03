@@ -1,12 +1,3 @@
-python_sources(
-    name="lib",
-)
-
-python_sources(
-    name="lib_test",
-    resolve="py-reqs-dev",
-)
-
 python_distribution(
     name="dist",
     dependencies=["src/harness/manipulator/manipulator.py:lib"],
