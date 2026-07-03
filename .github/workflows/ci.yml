@@ -5,14 +5,14 @@ on:
   pull_request:
 
 jobs:
-  make-lock:
+  validate-and-generate:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@main
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@main
         with:
           python-version: '3.12.3' # Use the python version required by your repo
 
@@ -24,61 +24,11 @@ jobs:
       - name: Generate lockfiles
         run: pants generate-lockfiles
 
-      - name: Upload lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: lockfiles
-          path: |
-            src/python-default.lock
-            test/python-dev.lock
-  verify:
-    needs: make-lock
-    runs-on: self-hosted
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Download lockfiles
-        uses: actions/download-artifact@v4
-        with:
-          name: lockfiles
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12.3' # Use the python version required by your repo
-
-      - name: Initialize Pants
-        uses: pantsbuild/actions/init-pants@main
-        with:
-          base-branch: main
-
       - name: Validate autoformat and types
-        run: 'pants --keep-sandboxes=always lint check ::'
+        run: pants lint check src/ test/
 
       - name: Run Tests
-        run: 'pants --keep-sandboxes=always test --output=all --test-force ::'
-  generate-whl:
-    needs: verify
-    runs-on: self-hosted
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+        run: pants test --output=all --test-force test/
 
-      - name: Download lockfiles
-        uses: actions/download-artifact@v4
-        with:
-          name: lockfiles
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12.3' # Use the python version required by your repo
-
-      - name: Initialize Pants
-        uses: pantsbuild/actions/init-pants@main
-        with:
-          base-branch: main
-
-      - name: Generate lockfiles
-        run: 'pants package ::'
+      - name: Generate Wheels
+        run: pants package src/
