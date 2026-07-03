@@ -11,6 +11,7 @@ jobs:
       - name: Generate lockfiles
         run: pants generate-lockfiles
   verify:
+    needs: make-lock
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -32,6 +33,7 @@ jobs:
       - name: Run Tests
         run: 'pants --keep-sandboxes=always test --output=all --test-force ::'
   generate-whl:
+    needs: verify
     runs-on: self-hosted
     steps:
       - name: Checkout code
