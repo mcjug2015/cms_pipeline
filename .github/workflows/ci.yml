@@ -8,14 +8,40 @@ jobs:
   make-lock:
     runs-on: self-hosted
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.3' # Use the python version required by your repo
+
+      - name: Initialize Pants
+        uses: pantsbuild/actions/init-pants@main
+        with:
+          base-branch: main
+
       - name: Generate lockfiles
         run: pants generate-lockfiles
+
+      - name: Upload lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfiles
+          path: |
+            src/python-default.lock
+            test/python-dev.lock
   verify:
     needs: make-lock
     runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Download lockfiles
+        uses: actions/download-artifact@v4
+        with:
+          name: lockfiles
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -38,6 +64,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Download lockfiles
+        uses: actions/download-artifact@v4
+        with:
+          name: lockfiles
 
       - name: Setup Python
         uses: actions/setup-python@v5
