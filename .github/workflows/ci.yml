@@ -28,7 +28,7 @@ jobs:
         run: pants lint check src/ test/
 
       - name: Run Tests
-        run: pants test --output=all --test-force test/
+        run: pants test --output=all --test-force --use-coverage --coverage-py-report=console test/::
 
       - name: Generate Wheels
         run: pants package src/

@@ -9,3 +9,11 @@ log_cli_level = "ERROR"
 
 [tool.isort]
 profile = "black"
+
+
+[tool.coverage.run]
+branch = true
+
+
+[tool.coverage.report]
+fail_under = 69
