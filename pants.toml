@@ -22,3 +22,5 @@ search_path = ["<PATH>", "<PYENV>"]
 
 [coverage-py]
 filter = ["src"]
+report = ["console"]
+global_report = true

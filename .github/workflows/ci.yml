@@ -28,7 +28,24 @@ jobs:
         run: pants lint check src/ test/
 
       - name: Run Tests
-        run: pants test --output=all --test-force --use-coverage --coverage-py-report=console test/::
+        run: |
+          rm -rf dist/test/reports
+          pants test --output=all --test-force --use-coverage --report test/::
+
+      - name: Enforce minimum test count
+        run: |
+          python - <<'EOF'
+          import glob, sys, xml.etree.ElementTree as ET
+          total = 0
+          for f in glob.glob("dist/test/reports/*.xml"):
+              root = ET.parse(f).getroot()
+              for ts in root.iter("testsuite"):
+                  total += int(ts.get("tests", 0)) - int(ts.get("skipped", 0))
+          print(f"Total tests run: {total}")
+          if total < 1:
+              print("::error::Fewer than 1 tests were run", file=sys.stderr)
+              sys.exit(1)
+          EOF
 
       - name: Generate Wheels
         run: pants package src/
