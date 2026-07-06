@@ -64,7 +64,7 @@ def migrate(spark, output_folder, cat: str, schema: str):
     for template_name in all_templates:
         result_sql = apply_template(
             output_folder,
-            env.get_template(template_name, globals),
+            env.get_template(template_name),
             cat=cat,
             schema=schema,
         )

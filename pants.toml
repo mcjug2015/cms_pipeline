@@ -19,3 +19,8 @@ resolves = { python-default = "src/python-default.lock", py-reqs-dev = "test/pyt
 
 [python-bootstrap]
 search_path = ["<PATH>", "<PYENV>"]
+
+[coverage-py]
+filter = ["src"]
+report = ["console"]
+global_report = true

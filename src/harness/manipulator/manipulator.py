@@ -6,11 +6,12 @@ import sys
 import time
 
 from pyspark.sql import SparkSession
+
 from src import custom_logging
-
-from src.crutch_migrations.run_crutch_migrations import get_ascending_letters_within_minute
+from src.crutch_migrations.run_crutch_migrations import (
+    get_ascending_letters_within_minute,
+)
 from src.spark_utils import get_spark
-
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
@@ -39,7 +40,9 @@ def main(*args, **kwargs):
         cat = sys.argv[1]
         schema = sys.argv[2]
     if not cat or not schema:
-        raise ValueError(f"Expecting both cat and schema, got {args}, {kwargs}, {sys.argv};")
+        raise ValueError(
+            f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};"
+        )
     with_spark(get_spark(), cat, schema)
     logger.info("end manipulator main")
 
