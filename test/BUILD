@@ -6,3 +6,8 @@ python_sources(
     name="lib_test",
     resolve="py-reqs-dev",
 )
+
+python_test_utils(
+    name="test_utils",
+    resolve="py-reqs-dev",
+)
