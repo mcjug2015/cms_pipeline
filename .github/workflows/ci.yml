@@ -82,3 +82,14 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
           if-no-files-found: error
+
+      - name: Deploy manipulator_job (Databricks bundle)
+        # Only publish from main; PR builds validate but must not mutate the workspace.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: dab
+        env:
+          # OAuth machine-to-machine (service principal). The application id is
+          # the client id and is not secret; the secret must be a repo secret.
+          DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+        run: databricks bundle deploy -t dev
