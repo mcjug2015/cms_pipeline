@@ -8,8 +8,8 @@ jobs:
   validate-and-generate:
     runs-on: self-hosted
     env:
-      # Fan local process execution out across all cores on this 16-core runner.
-      PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "16"
+      # Fan local process execution out across 12 cores on this 16-core runner.
+      PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "12"
     steps:
       - name: Configure Pants caches
         shell: bash
