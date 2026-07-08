@@ -8,15 +8,21 @@ jobs:
   validate-and-generate:
     runs-on: self-hosted
     env:
-      # This is a persistent self-hosted runner: Pants' caches already live on
-      # local disk and survive between jobs, so we keep them there instead of
-      # round-tripping ~14 GB through the GitHub Actions cache service each run.
-      # These are Pants' default locations, set explicitly so they never move.
-      PANTS_NAMED_CACHES_DIR: $HOME/.cache/pants/named_caches
-      PANTS_LOCAL_STORE_DIR: $HOME/.cache/pants/lmdb_store
       # Fan local process execution out across all cores on this 16-core runner.
       PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "16"
     steps:
+      - name: Configure Pants caches
+        shell: bash
+        run: |
+          # This is a persistent self-hosted runner: Pants' caches already live
+          # on local disk and survive between jobs, so we keep them there instead
+          # of round-tripping ~14 GB through the GitHub Actions cache service each
+          # run. These are Pants' default locations, pinned so they never move.
+          # Set here (not in job-level env:) so $HOME expands via the shell; a
+          # job-level env: value would be taken literally.
+          echo "PANTS_NAMED_CACHES_DIR=$HOME/.cache/pants/named_caches" >> "$GITHUB_ENV"
+          echo "PANTS_LOCAL_STORE_DIR=$HOME/.cache/pants/lmdb_store" >> "$GITHUB_ENV"
+
       - name: Checkout code
         uses: actions/checkout@main
 
