@@ -7,6 +7,15 @@ on:
 jobs:
   validate-and-generate:
     runs-on: self-hosted
+    env:
+      # This is a persistent self-hosted runner: Pants' caches already live on
+      # local disk and survive between jobs, so we keep them there instead of
+      # round-tripping ~14 GB through the GitHub Actions cache service each run.
+      # These are Pants' default locations, set explicitly so they never move.
+      PANTS_NAMED_CACHES_DIR: $HOME/.cache/pants/named_caches
+      PANTS_LOCAL_STORE_DIR: $HOME/.cache/pants/lmdb_store
+      # Fan local process execution out across all cores on this 16-core runner.
+      PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "16"
     steps:
       - name: Checkout code
         uses: actions/checkout@main
@@ -17,9 +26,24 @@ jobs:
           python-version: '3.12.3' # Use the python version required by your repo
 
       - name: Initialize Pants
-        uses: pantsbuild/actions/init-pants@main
-        with:
-          base-branch: main
+        shell: bash
+        run: |
+          # Bootstrap Pants directly. The pantsbuild/actions/init-pants action
+          # wraps ~/.cache/pants (named_caches, ~11 GB) and ~/.cache/nce (the
+          # bootstrap venv, ~3 GB) in actions/cache; on this persistent runner
+          # that only adds a slow download here plus a slow upload in the
+          # implied "Post Initialize Pants" step, for data that is already local.
+          # Ensure the launcher (installed at ~/.local/bin/pants) is on PATH for
+          # this and all subsequent steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          if ! command -v pants >/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 \
+              --retry-all-errors --create-dirs -fsSLo "$RUNNER_TEMP/get-pants.sh" \
+              https://raw.githubusercontent.com/pantsbuild/setup/main/get-pants.sh
+            bash "$RUNNER_TEMP/get-pants.sh"
+          fi
+          pants --version
 
       - name: Generate lockfiles
         run: pants generate-lockfiles
