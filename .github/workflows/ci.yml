@@ -14,12 +14,6 @@ jobs:
       - name: Configure Pants caches
         shell: bash
         run: |
-          # This is a persistent self-hosted runner: Pants' caches already live
-          # on local disk and survive between jobs, so we keep them there instead
-          # of round-tripping ~14 GB through the GitHub Actions cache service each
-          # run. These are Pants' default locations, pinned so they never move.
-          # Set here (not in job-level env:) so $HOME expands via the shell; a
-          # job-level env: value would be taken literally.
           echo "PANTS_NAMED_CACHES_DIR=$HOME/.cache/pants/named_caches" >> "$GITHUB_ENV"
           echo "PANTS_LOCAL_STORE_DIR=$HOME/.cache/pants/lmdb_store" >> "$GITHUB_ENV"
 
@@ -34,13 +28,8 @@ jobs:
       - name: Initialize Pants
         shell: bash
         run: |
-          # Bootstrap Pants directly. The pantsbuild/actions/init-pants action
-          # wraps ~/.cache/pants (named_caches, ~11 GB) and ~/.cache/nce (the
-          # bootstrap venv, ~3 GB) in actions/cache; on this persistent runner
-          # that only adds a slow download here plus a slow upload in the
-          # implied "Post Initialize Pants" step, for data that is already local.
-          # Ensure the launcher (installed at ~/.local/bin/pants) is on PATH for
-          # this and all subsequent steps.
+          # The pantsbuild/actions/init-pants action wraps ~/.cache/pants and ~/.cache/nce in actions/cache; on this persistent runner
+          # Ensure the launcher (installed at ~/.local/bin/pants) is on PATH for this and all subsequent steps.
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/bin:$PATH"
           if ! command -v pants >/dev/null; then
