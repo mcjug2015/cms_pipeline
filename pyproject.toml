@@ -16,4 +16,4 @@ branch = true
 
 
 [tool.coverage.report]
-fail_under = 69
+fail_under = 83

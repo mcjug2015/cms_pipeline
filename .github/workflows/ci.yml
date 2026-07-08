@@ -7,7 +7,16 @@ on:
 jobs:
   validate-and-generate:
     runs-on: self-hosted
+    env:
+      # Fan local process execution out across 12 cores on this 16-core runner.
+      PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "12"
     steps:
+      - name: Configure Pants caches
+        shell: bash
+        run: |
+          echo "PANTS_NAMED_CACHES_DIR=$HOME/.cache/pants/named_caches" >> "$GITHUB_ENV"
+          echo "PANTS_LOCAL_STORE_DIR=$HOME/.cache/pants/lmdb_store" >> "$GITHUB_ENV"
+
       - name: Checkout code
         uses: actions/checkout@main
 
@@ -17,9 +26,19 @@ jobs:
           python-version: '3.12.3' # Use the python version required by your repo
 
       - name: Initialize Pants
-        uses: pantsbuild/actions/init-pants@main
-        with:
-          base-branch: main
+        shell: bash
+        run: |
+          # The pantsbuild/actions/init-pants action wraps ~/.cache/pants and ~/.cache/nce in actions/cache; on this persistent runner
+          # Ensure the launcher (installed at ~/.local/bin/pants) is on PATH for this and all subsequent steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          if ! command -v pants >/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 \
+              --retry-all-errors --create-dirs -fsSLo "$RUNNER_TEMP/get-pants.sh" \
+              https://raw.githubusercontent.com/pantsbuild/setup/main/get-pants.sh
+            bash "$RUNNER_TEMP/get-pants.sh"
+          fi
+          pants --version
 
       - name: Generate lockfiles
         run: pants generate-lockfiles
@@ -58,3 +77,14 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
           if-no-files-found: error
+
+      - name: Deploy manipulator_job (Databricks bundle)
+        # Only publish from main; PR builds validate but must not mutate the workspace.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: dab
+        env:
+          # OAuth machine-to-machine (service principal). The application id is
+          # the client id and is not secret; the secret must be a repo secret.
+          DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+        run: databricks bundle deploy -t dev

@@ -185,7 +185,7 @@ def benchmark_python_udf_overhead(
 
 
 def main(*args, **kwargs):
-    logger.info("begin manipulator main")
+    logger.info("manipulator main begins")
     cat = kwargs.get("cat", None)
     schema = kwargs.get("schema", None)
     if not cat or not schema:
@@ -212,7 +212,7 @@ def main(*args, **kwargs):
     logger.info(
         f"benchmark_python_udf_overhead says: {benchmark_python_udf_overhead(spark, num_rows=5000)}"
     )
-    logger.info("end manipulator main")
+    logger.info("main manipulator end")
 
 
 if __name__ == "__main__":
