@@ -86,6 +86,12 @@ jobs:
           # the client id and is not secret; the secret must be a repo secret.
           DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          # databricks-connect needs the workspace host to complete OAuth M2M auth
+          # (client id + secret alone can't resolve which workspace to sign into),
+          # plus a compute target; "auto" picks serverless. The Deploy step gets
+          # host from the bundle, but this step has no bundle, so set it explicitly.
+          DATABRICKS_HOST: https://dbc-807557d7-311c.cloud.databricks.com
+          DATABRICKS_SERVERLESS_COMPUTE_ID: auto
         run: |
             pants run src/crutch_migrations/run_crutch_migrations.py:lib -- --cat=dbr_dbc_cat --schema=testing_testing
 
