@@ -3,19 +3,42 @@ from unittest import mock
 from src import custom_logging
 from src.harness.manipulator import manipulator
 from src.harness.manipulator.manipulator import (
-    benchmark_collect_bandwidth,
-    benchmark_python_udf_overhead,
-    benchmark_query_round_trip,
-    benchmark_range_aggregation,
-    benchmark_shuffle,
-    with_spark,
+    AbstractBenchmark,
+    ClusterRoundtripLatency,
+    CollectBandwidth,
+    PythonUdfOverhead,
+    RangeAggregation,
+    ShuffleGroupBy,
+    SingleRowInsert,
 )
 
 logger = custom_logging.setup_logging().getLogger(__name__)
 
 
-def test_with_spark(migrated_test_spark):
-    with_spark(migrated_test_spark, cat="spark_catalog", schema="default")
+@mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
+def test_abstract_benchmark_save_metric(migrated_test_spark):
+    bmrk = AbstractBenchmark(migrated_test_spark, cat="spark_catalog", schema="default")
+    bmrk.save_metric({"testing": "testing"})
+    sql_result = migrated_test_spark.sql("select * from spark_catalog.default.metrics;")
+    results = [x.asDict() for x in sql_result.toLocalIterator()]
+    assert len(results) == 1
+    assert results[0]["metric_name"] == "AbstractBenchmark"
+
+
+@mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
+@mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.save_metric")
+@mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.benchmark")
+def test_abstract_benchmark_execute(benchmark, save_metric):
+    bmrk = AbstractBenchmark(None, cat=None, schema=None)
+    bmrk.execute()
+    benchmark.assert_called_once()
+    save_metric.assert_called_once()
+
+
+def test_single_row_insert(migrated_test_spark):
+    SingleRowInsert(
+        migrated_test_spark, cat="spark_catalog", schema="default"
+    ).benchmark()
     sql_result = migrated_test_spark.sql(
         "select * from spark_catalog.default.test_table order by int_id desc;"
     )
@@ -25,77 +48,76 @@ def test_with_spark(migrated_test_spark):
     logger.info("end of test")
 
 
-def test_benchmark_query_round_trip(test_spark):
-    result = benchmark_query_round_trip(
+def test_cluster_roundtrip_latency(test_spark):
+    result = ClusterRoundtripLatency(
         test_spark, cat="spark_catalog", schema="default", iterations=1
-    )
+    ).benchmark()
     assert result["iterations"] == 1
     assert result["total_seconds"] > 0
 
 
-def test_benchmark_range_aggregation(test_spark):
-    result = benchmark_range_aggregation(
+def test_range_aggregation(test_spark):
+    result = RangeAggregation(
         test_spark, cat="spark_catalog", schema="default", num_rows=1
-    )
+    ).benchmark()
     assert result["num_rows"] == 1
-    assert result["elapsed_seconds"] >= 0
+    assert result["total_seconds"] >= 0
 
 
-def test_benchmark_shuffle(test_spark):
-    result = benchmark_shuffle(
+def test_shuffle_group_by(test_spark):
+    result = ShuffleGroupBy(
         test_spark, cat="spark_catalog", schema="default", num_rows=1, num_groups=1
-    )
+    ).benchmark()
     assert result["num_rows"] == 1
     assert result["num_groups"] == 1
-    assert result["elapsed_seconds"] >= 0
+    assert result["total_seconds"] >= 0
 
 
-def test_benchmark_collect_bandwidth(test_spark):
-    result = benchmark_collect_bandwidth(
+def test_collect_bandwidth(test_spark):
+    result = CollectBandwidth(
         test_spark, cat="spark_catalog", schema="default", num_rows=1
-    )
+    ).benchmark()
     assert result["num_rows"] == 1
     assert result["rows_collected"] == 1
-    assert result["elapsed_seconds"] >= 0
+    assert result["total_seconds"] >= 0
 
 
-def test_benchmark_python_udf_overhead(test_spark):
-    result = benchmark_python_udf_overhead(
+def test_python_udf_overhead(test_spark):
+    result = PythonUdfOverhead(
         test_spark, cat="spark_catalog", schema="default", num_rows=1
-    )
+    ).benchmark()
     assert result["num_rows"] == 1
-    assert result["native_seconds"] >= 0
+    assert result["total_seconds"] >= 0
     assert result["python_udf_seconds"] >= 0
 
 
-BENCHMARK_NAMES = [
-    "benchmark_query_round_trip",
-    "benchmark_range_aggregation",
-    "benchmark_shuffle",
-    "benchmark_collect_bandwidth",
-    "benchmark_python_udf_overhead",
-]
+# Decorators apply bottom-up, so the mocks arrive as arguments in the reverse
+@mock.patch("src.harness.manipulator.manipulator.get_spark")
+@mock.patch("src.harness.manipulator.manipulator.SingleRowInsert")
+@mock.patch("src.harness.manipulator.manipulator.ClusterRoundtripLatency")
+@mock.patch("src.harness.manipulator.manipulator.RangeAggregation")
+@mock.patch("src.harness.manipulator.manipulator.ShuffleGroupBy")
+@mock.patch("src.harness.manipulator.manipulator.CollectBandwidth")
+@mock.patch("src.harness.manipulator.manipulator.PythonUdfOverhead")
+def test_main_calls_execute_on_benchmarks(
+    mock_python_udf_overhead,
+    mock_collect_bandwidth,
+    mock_shuffle_group_by,
+    mock_range_aggregation,
+    mock_cluster_roundtrip_latency,
+    mock_single_row_insert,
+    mock_get_spark,
+):
+    """main() should invoke .execute() on every benchmark class."""
+    manipulator.main(cat="c", schema="s")
 
-
-def test_main():
-    mock_spark = mock.MagicMock(name="spark")
-
-    with mock.patch.object(
-        manipulator, "get_spark", return_value=mock_spark
-    ) as mock_get_spark, mock.patch.multiple(
-        manipulator,
-        with_spark=mock.DEFAULT,
-        benchmark_query_round_trip=mock.DEFAULT,
-        benchmark_range_aggregation=mock.DEFAULT,
-        benchmark_shuffle=mock.DEFAULT,
-        benchmark_collect_bandwidth=mock.DEFAULT,
-        benchmark_python_udf_overhead=mock.DEFAULT,
-    ) as mocks:
-        manipulator.main(cat="c", schema="s")
-
+    for benchmark_class in (
+        mock_single_row_insert,
+        mock_cluster_roundtrip_latency,
+        mock_range_aggregation,
+        mock_shuffle_group_by,
+        mock_collect_bandwidth,
+        mock_python_udf_overhead,
+    ):
+        benchmark_class.return_value.execute.assert_called_once()
     mock_get_spark.assert_called_once()
-    mocks["with_spark"].assert_called_once_with(mock_spark, "c", "s")
-    for name in BENCHMARK_NAMES:
-        mocks[name].assert_called_once()
-        # main runs each benchmark against the single mocked session.
-        assert mocks[name].call_args.args[0] is mock_spark
