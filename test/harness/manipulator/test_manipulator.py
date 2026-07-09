@@ -26,33 +26,43 @@ def test_with_spark(migrated_test_spark):
 
 
 def test_benchmark_query_round_trip(test_spark):
-    result = benchmark_query_round_trip(test_spark, iterations=1)
+    result = benchmark_query_round_trip(
+        test_spark, cat="spark_catalog", schema="default", iterations=1
+    )
     assert result["iterations"] == 1
     assert result["total_seconds"] > 0
 
 
 def test_benchmark_range_aggregation(test_spark):
-    result = benchmark_range_aggregation(test_spark, num_rows=1)
+    result = benchmark_range_aggregation(
+        test_spark, cat="spark_catalog", schema="default", num_rows=1
+    )
     assert result["num_rows"] == 1
     assert result["elapsed_seconds"] >= 0
 
 
 def test_benchmark_shuffle(test_spark):
-    result = benchmark_shuffle(test_spark, num_rows=1, num_groups=1)
+    result = benchmark_shuffle(
+        test_spark, cat="spark_catalog", schema="default", num_rows=1, num_groups=1
+    )
     assert result["num_rows"] == 1
     assert result["num_groups"] == 1
     assert result["elapsed_seconds"] >= 0
 
 
 def test_benchmark_collect_bandwidth(test_spark):
-    result = benchmark_collect_bandwidth(test_spark, num_rows=1)
+    result = benchmark_collect_bandwidth(
+        test_spark, cat="spark_catalog", schema="default", num_rows=1
+    )
     assert result["num_rows"] == 1
     assert result["rows_collected"] == 1
     assert result["elapsed_seconds"] >= 0
 
 
 def test_benchmark_python_udf_overhead(test_spark):
-    result = benchmark_python_udf_overhead(test_spark, num_rows=1)
+    result = benchmark_python_udf_overhead(
+        test_spark, cat="spark_catalog", schema="default", num_rows=1
+    )
     assert result["num_rows"] == 1
     assert result["native_seconds"] >= 0
     assert result["python_udf_seconds"] >= 0

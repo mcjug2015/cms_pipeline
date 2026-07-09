@@ -1,9 +1,11 @@
 import argparse
 import datetime
+import json
 import os
 import shutil
 import sys
 import time
+import uuid
 from typing import Any, Dict
 
 from pyspark.sql import SparkSession
@@ -36,7 +38,7 @@ def with_spark(spark: SparkSession, cat: str, schema: str):
 
 
 def benchmark_query_round_trip(
-    spark: SparkSession, iterations: int = 50
+    spark: SparkSession, cat: str, schema: str, iterations: int = 50
 ) -> Dict[str, Any]:
     """Benchmark driver<->cluster round-trip latency using trivial no-op queries.
 
@@ -60,12 +62,23 @@ def benchmark_query_round_trip(
         "p95_ms": durations[min(len(durations) - 1, int(len(durations) * 0.95))] * 1000,
         "max_ms": durations[-1] * 1000,
     }
+    spark.sql(
+        f"""
+        insert into {cat}.{schema}.metrics (id, payload, last_updated)
+        values (:id, parse_json(:payload), :last_updated)
+        """,
+        args={
+            "id": str(uuid.uuid4()),
+            "payload": json.dumps(metrics),
+            "last_updated": datetime.datetime.now(),
+        },
+    )
     logger.info(f"[benchmark] query round-trip latency: {metrics}")
     return metrics
 
 
 def benchmark_range_aggregation(
-    spark: SparkSession, num_rows: int = 50_000_000
+    spark: SparkSession, cat: str, schema: str, num_rows: int = 50_000_000
 ) -> Dict[str, Any]:
     """Benchmark raw compute throughput via a full-scan aggregation.
 
@@ -84,12 +97,27 @@ def benchmark_range_aggregation(
         "rows_per_second": num_rows / elapsed if elapsed else float("inf"),
         "checksum": result[0]["total"] if result else None,
     }
+    spark.sql(
+        f"""
+        insert into {cat}.{schema}.metrics (id, payload, last_updated)
+        values (:id, parse_json(:payload), :last_updated)
+        """,
+        args={
+            "id": str(uuid.uuid4()),
+            "payload": json.dumps(metrics),
+            "last_updated": datetime.datetime.now(),
+        },
+    )
     logger.info(f"[benchmark] range aggregation throughput: {metrics}")
     return metrics
 
 
 def benchmark_shuffle(
-    spark: SparkSession, num_rows: int = 20_000_000, num_groups: int = 1000
+    spark: SparkSession,
+    cat: str,
+    schema: str,
+    num_rows: int = 20_000_000,
+    num_groups: int = 1000,
 ) -> Dict[str, Any]:
     """Benchmark shuffle/exchange performance via a wide group-by.
 
@@ -116,12 +144,23 @@ def benchmark_shuffle(
         "elapsed_seconds": elapsed,
         "rows_per_second": num_rows / elapsed if elapsed else float("inf"),
     }
+    spark.sql(
+        f"""
+        insert into {cat}.{schema}.metrics (id, payload, last_updated)
+        values (:id, parse_json(:payload), :last_updated)
+        """,
+        args={
+            "id": str(uuid.uuid4()),
+            "payload": json.dumps(metrics),
+            "last_updated": datetime.datetime.now(),
+        },
+    )
     logger.info(f"[benchmark] shuffle group-by: {metrics}")
     return metrics
 
 
 def benchmark_collect_bandwidth(
-    spark: SparkSession, num_rows: int = 1_000_000
+    spark: SparkSession, cat: str, schema: str, num_rows: int = 1_000_000
 ) -> Dict[str, Any]:
     """Benchmark result-transfer bandwidth from executors back to the driver.
 
@@ -146,12 +185,23 @@ def benchmark_collect_bandwidth(
             (approx_bytes / 1e6) / elapsed if elapsed else float("inf")
         ),
     }
+    spark.sql(
+        f"""
+        insert into {cat}.{schema}.metrics (id, payload, last_updated)
+        values (:id, parse_json(:payload), :last_updated)
+        """,
+        args={
+            "id": str(uuid.uuid4()),
+            "payload": json.dumps(metrics),
+            "last_updated": datetime.datetime.now(),
+        },
+    )
     logger.info(f"[benchmark] collect bandwidth: {metrics}")
     return metrics
 
 
 def benchmark_python_udf_overhead(
-    spark: SparkSession, num_rows: int = 5_000_000
+    spark: SparkSession, cat: str, schema: str, num_rows: int = 5_000_000
 ) -> Dict[str, Any]:
     """Benchmark the cost of Python UDF serialization vs. native expressions.
 
@@ -180,6 +230,17 @@ def benchmark_python_udf_overhead(
             udf_elapsed / native_elapsed if native_elapsed else float("inf")
         ),
     }
+    spark.sql(
+        f"""
+        insert into {cat}.{schema}.metrics (id, payload, last_updated)
+        values (:id, parse_json(:payload), :last_updated)
+        """,
+        args={
+            "id": str(uuid.uuid4()),
+            "payload": json.dumps(metrics),
+            "last_updated": datetime.datetime.now(),
+        },
+    )
     logger.info(f"[benchmark] python UDF overhead: {metrics}")
     return metrics
 
@@ -198,19 +259,19 @@ def main(*args, **kwargs):
     spark = get_spark()
     with_spark(spark, cat, schema)
     logger.info(
-        f"benchmark_query_round_trip says: {benchmark_query_round_trip(spark, iterations=5)}"
+        f"benchmark_query_round_trip says: {benchmark_query_round_trip(spark, cat, schema, iterations=5)}"
     )
     logger.info(
-        f"benchmark_range_aggregation says: {benchmark_range_aggregation(spark, num_rows=5000)}"
+        f"benchmark_range_aggregation says: {benchmark_range_aggregation(spark, cat, schema, num_rows=5000)}"
     )
     logger.info(
-        f"benchmark_shuffle says: {benchmark_shuffle(spark, num_rows=5000, num_groups=2)}"
+        f"benchmark_shuffle says: {benchmark_shuffle(spark, cat, schema, num_rows=5000, num_groups=2)}"
     )
     logger.info(
-        f"benchmark_collect_bandwidth says: {benchmark_collect_bandwidth(spark, num_rows=5000)}"
+        f"benchmark_collect_bandwidth says: {benchmark_collect_bandwidth(spark, cat, schema, num_rows=5000)}"
     )
     logger.info(
-        f"benchmark_python_udf_overhead says: {benchmark_python_udf_overhead(spark, num_rows=5000)}"
+        f"benchmark_python_udf_overhead says: {benchmark_python_udf_overhead(spark, cat, schema, num_rows=5000)}"
     )
     logger.info("main manipulator end")
 
