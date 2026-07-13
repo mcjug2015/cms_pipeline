@@ -36,6 +36,7 @@ targets:
       # updating a single shared one (job identity follows the state location).
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.branch}
     presets:
-      # Per-branch name prefix so the jobs are distinguishable in the UI.
-      name_prefix: "[${var.branch}] "
+      # Per-branch name prefix so the jobs are distinguishable in the UI. In
+      # development mode DAB requires the prefix to contain the current user
+      name_prefix: "[dev ${workspace.current_user.short_name} ${var.branch}] "
 
