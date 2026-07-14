@@ -1,7 +1,6 @@
 name: Run Pants Tests
 on:
   push:
-  pull_request:
 
 jobs:
   validate-and-generate:
@@ -78,7 +77,6 @@ jobs:
           if-no-files-found: error
 
       - name: Apply ddl
-        if: github.event_name == 'push'
         env:
           DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
@@ -100,9 +98,6 @@ jobs:
             pants run src/crutch_migrations/run_crutch_migrations.py:lib -- --cat="${cat_name}" --schema=testing_testing
 
       - name: Deploy manipulator_job (Databricks bundle)
-        # Run on any branch push (uses the same per-branch catalog as Apply ddl);
-        # skip pull_request events, which must not mutate the workspace.
-        if: github.event_name == 'push'
         working-directory: dab
         env:
           # OAuth machine-to-machine (service principal). The application id is

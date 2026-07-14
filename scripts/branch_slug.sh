@@ -10,5 +10,7 @@ slug="${branch%% *}"
 slug="$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_' '_')"
 # Unity Catalog identifiers can't start with a digit; prefix if needed.
 case "$slug" in [0-9]*) slug="b_${slug}" ;; esac
+# Cap the final slug at 9 characters total (after any b_ prefix).
+slug="${slug:0:9}"
 
 printf '%s\n' "$slug"
