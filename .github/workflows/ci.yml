@@ -1,8 +1,6 @@
 name: Run Pants Tests
 on:
   push:
-    branches: [main]
-  pull_request:
 
 jobs:
   validate-and-generate:
@@ -79,25 +77,28 @@ jobs:
           if-no-files-found: error
 
       - name: Apply ddl
-        # Only publish from main; PR builds validate but must not mutate the workspace.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          # OAuth machine-to-machine (service principal). The application id is
-          # the client id and is not secret; the secret must be a repo secret.
           DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-          # databricks-connect needs the workspace host to complete OAuth M2M auth
-          # (client id + secret alone can't resolve which workspace to sign into),
-          # plus a compute target; "auto" picks serverless. The Deploy step gets
-          # host from the bundle, but this step has no bundle, so set it explicitly.
           DATABRICKS_HOST: https://dbc-807557d7-311c.cloud.databricks.com
           DATABRICKS_SERVERLESS_COMPUTE_ID: auto
         run: |
-            pants run src/crutch_migrations/run_crutch_migrations.py:lib -- --cat=dbr_dbc_cat --schema=testing_testing
+            # Per-branch slug (e.g. "main"); shared with the cleanup workflow so
+            # deploy and destroy resolve to the same deployment. See the script.
+            branch_cat="$(bash scripts/branch_slug.sh "$GITHUB_REF_NAME")"
+            # main uses the shared catalog; other branches get a per-branch one.
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              cat_name="dbr_dbc_cat"
+            else
+              cat_name="${branch_cat}_dbr_dbc_cat"
+            fi
+            # Share the computed catalog and branch slug with later steps (deploy).
+            echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
+            echo "BRANCH_SLUG=${branch_cat}" >> "$GITHUB_ENV"
+            pants run src/crutch_migrations/run_crutch_migrations.py:lib -- --cat="${cat_name}" --schema=testing_testing
+            echo "done running pants run src/crutch_migrations/run_crutch_migrations.py!!!!"
 
       - name: Deploy manipulator_job (Databricks bundle)
-        # Only publish from main; PR builds validate but must not mutate the workspace.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         working-directory: dab
         env:
           # OAuth machine-to-machine (service principal). The application id is
@@ -105,4 +106,11 @@ jobs:
           DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
         run: |
-            databricks bundle deploy -t dev
+            # Reuse the catalog computed in Apply ddl (via $GITHUB_ENV). main uses
+            # the canonical, non-branch-scoped target; other branches use the
+            # branch-isolated dev target.
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              databricks bundle deploy -t main --var="catalog=${CAT_NAME}"
+            else
+              databricks bundle deploy -t dev --var="catalog=${CAT_NAME}" --var="branch=${BRANCH_SLUG}"
+            fi

@@ -14,6 +14,10 @@ variables:
   schema:
     description: Schema the manipulator writes to.
     default: testing_testing
+  branch:
+    description: >-
+      Git branch slug this deployment belongs to. Isolates each branch's job
+    default: local
 
 artifacts:
   manipulator_wheel:
@@ -28,4 +32,21 @@ targets:
     default: true
     workspace:
       host: https://dbc-807557d7-311c.cloud.databricks.com
+      # Per-branch state path -> each branch manages its own job rather than
+      # updating a single shared one (job identity follows the state location).
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.branch}
+    presets:
+      # Per-branch name prefix so the jobs are distinguishable in the UI. In
+      # development mode DAB requires the prefix to contain the current user
+      name_prefix: "[dev ${workspace.current_user.short_name} ${var.branch}] "
+
+  main:
+    # Canonical, non-branch-scoped deployment for pushes to main: fixed state
+    # path and name (no ${var.branch}), so there is a single main job.
+    mode: development
+    workspace:
+      host: https://dbc-807557d7-311c.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    presets:
+      name_prefix: "[${bundle.target} ${workspace.current_user.short_name}] "
 

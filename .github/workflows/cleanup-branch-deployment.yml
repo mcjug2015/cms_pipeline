@@ -1,0 +1,53 @@
+name: Cleanup branch deployment
+
+# Fires when a branch is deleted. The workflow file is read from the default
+# branch (the deleted branch is gone)
+on:
+  delete:
+
+jobs:
+  destroy:
+    # Only branch deletions (ignore tag deletions).
+    if: github.event.ref_type == 'branch'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Setup Python
+        uses: actions/setup-python@main
+        with:
+          python-version: '3.12.3' # Match the repo's interpreter constraints.
+
+      - name: Initialize Pants
+        shell: bash
+        run: |
+          # Ensure the launcher (installed at ~/.local/bin/pants) is on PATH.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          if ! command -v pants >/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 \
+              --retry-all-errors --create-dirs -fsSLo "$RUNNER_TEMP/get-pants.sh" \
+              https://raw.githubusercontent.com/pantsbuild/setup/main/get-pants.sh
+            bash "$RUNNER_TEMP/get-pants.sh"
+          fi
+          pants --version
+
+      - name: Generate Wheels
+        # The bundle references ../dist/*.whl; build it so `bundle destroy` can
+        # resolve the artifact
+        run: pants package src/
+
+      - name: Destroy the branch's bundle deployment
+        working-directory: dab
+        env:
+          # OAuth machine-to-machine (service principal). Host comes from the bundle.
+          DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          # Pass the ref via env (not inline ${{ }}) to avoid shell injection from
+          # attacker-controlled branch names.
+          DELETED_BRANCH: ${{ github.event.ref }}
+        run: |
+            # Same slug the deploy used, so we tear down the right deployment.
+            branch_slug="$(bash ../scripts/branch_slug.sh "$DELETED_BRANCH")"
+            databricks bundle destroy -t dev --auto-approve --var="branch=${branch_slug}"
