@@ -95,9 +95,6 @@ jobs:
             # Share the computed catalog and branch slug with later steps (deploy).
             echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
             echo "BRANCH_SLUG=${branch_cat}" >> "$GITHUB_ENV"
-            echo "Will use the following cat_name/branch_cat!!!"
-            echo "${cat_name}"
-            echo "${branch_cat}"
             pants run src/crutch_migrations/run_crutch_migrations.py:lib -- --cat="${cat_name}" --schema=testing_testing
             echo "done running pants run src/crutch_migrations/run_crutch_migrations.py!!!!"
 

@@ -56,7 +56,6 @@ class AbstractBenchmark(ABC):
 class SingleRowInsert(AbstractBenchmark):
 
     def benchmark(self) -> Dict[str, Any]:
-        logger.info(f"In SingleRowInsert benchmark w. {self.cat} and {self.schema}")
         stuff = f"QQPP{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}"
         start = time.perf_counter()
         self.spark.sql(
@@ -65,9 +64,6 @@ class SingleRowInsert(AbstractBenchmark):
             """
         )
         duration = time.perf_counter() - start
-        logger.info(
-            f"DONE with SingleRowInsert benchmark w. {self.cat} and {self.schema} and {duration}"
-        )
         return {
             "total_seconds": duration,
         }
