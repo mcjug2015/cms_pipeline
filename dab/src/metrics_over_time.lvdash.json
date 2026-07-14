@@ -1,0 +1,309 @@
+{
+  "datasets": [
+    {
+      "config": {
+        "dimensions": [
+          {
+            "expr": "metric_name",
+            "name": "metric_name"
+          },
+          {
+            "expr": "last_updated",
+            "name": "last_updated"
+          },
+          {
+            "expr": "DATE_TRUNC('HOUR', last_updated)",
+            "name": "date_trunc_hour"
+          },
+          {
+            "expr": "DATE_TRUNC('DAY', last_updated)",
+            "name": "date_trunc_day"
+          }
+        ],
+        "measures": [
+          {
+            "expr": "SUM(CAST(payload:total_seconds AS DOUBLE))",
+            "name": "total_seconds"
+          },
+          {
+            "expr": "AVG(CAST(payload:total_seconds AS DOUBLE))",
+            "name": "avg_total_seconds"
+          },
+          {
+            "expr": "MAX(CAST(payload:total_seconds AS DOUBLE))",
+            "name": "max_total_seconds"
+          },
+          {
+            "expr": "MIN(CAST(payload:total_seconds AS DOUBLE))",
+            "name": "min_total_seconds"
+          },
+          {
+            "expr": "COUNT(*)",
+            "name": "record_count"
+          }
+        ],
+        "source": "dbr_dbc_cat.testing_testing.metrics",
+        "version": "1.1"
+      },
+      "displayName": "Metrics Over Time",
+      "name": "metrics_over_time"
+    }
+  ],
+  "pages": [
+    {
+      "displayName": "main page",
+      "layout": [
+        {
+          "position": {
+            "height": 3,
+            "width": 4,
+            "x": 8,
+            "y": 0
+          },
+          "widget": {
+            "name": "record_count_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_over_time",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "MEASURE(`record_count`)",
+                      "name": "measure(record_count)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(record_count)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Records"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 3,
+            "width": 4,
+            "x": 8,
+            "y": 3
+          },
+          "widget": {
+            "name": "metrics_comparison_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_over_time",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`metric_name`",
+                      "name": "metric_name"
+                    },
+                    {
+                      "expression": "MEASURE(`avg_total_seconds`)",
+                      "name": "measure(avg_total_seconds)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "metric_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(avg_total_seconds)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Average by Metric"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 12,
+            "x": 0,
+            "y": 6
+          },
+          "widget": {
+            "name": "metrics_detail_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_over_time",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`metric_name`",
+                      "name": "metric_name"
+                    },
+                    {
+                      "expression": "`date_trunc_hour`",
+                      "name": "date_trunc_hour"
+                    },
+                    {
+                      "expression": "MEASURE(`total_seconds`)",
+                      "name": "measure(total_seconds)"
+                    },
+                    {
+                      "expression": "MEASURE(`avg_total_seconds`)",
+                      "name": "measure(avg_total_seconds)"
+                    },
+                    {
+                      "expression": "MEASURE(`max_total_seconds`)",
+                      "name": "measure(max_total_seconds)"
+                    },
+                    {
+                      "expression": "MEASURE(`min_total_seconds`)",
+                      "name": "measure(min_total_seconds)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "date_trunc_hour"
+                  },
+                  {
+                    "fieldName": "measure(total_seconds)"
+                  },
+                  {
+                    "fieldName": "measure(avg_total_seconds)"
+                  },
+                  {
+                    "fieldName": "measure(max_total_seconds)"
+                  },
+                  {
+                    "fieldName": "measure(min_total_seconds)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Metrics Detail"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 8,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "name": "metrics_over_time_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_over_time",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`metric_name`",
+                      "name": "metric_name"
+                    },
+                    {
+                      "expression": "`date_trunc_hour`",
+                      "name": "date_trunc_hour"
+                    },
+                    {
+                      "expression": "MEASURE(`total_seconds`)",
+                      "name": "measure(total_seconds)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "fieldName": "metric_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "fieldName": "date_trunc_hour",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(total_seconds)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Metrics Performance Over Time"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "98c5fe57",
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "applyModeEnabled": false,
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    }
+  }
+}
