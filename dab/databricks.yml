@@ -40,3 +40,13 @@ targets:
       # development mode DAB requires the prefix to contain the current user
       name_prefix: "[dev ${workspace.current_user.short_name} ${var.branch}] "
 
+  main:
+    # Canonical, non-branch-scoped deployment for pushes to main: fixed state
+    # path and name (no ${var.branch}), so there is a single main job.
+    mode: development
+    workspace:
+      host: https://dbc-807557d7-311c.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    presets:
+      name_prefix: "[${bundle.target} ${workspace.current_user.short_name}] "
+

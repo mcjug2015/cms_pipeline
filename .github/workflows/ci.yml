@@ -88,7 +88,12 @@ jobs:
             # Per-branch slug (e.g. "main"); shared with the cleanup workflow so
             # deploy and destroy resolve to the same deployment. See the script.
             branch_cat="$(bash scripts/branch_slug.sh "$GITHUB_REF_NAME")"
-            cat_name="${branch_cat}_dbr_dbc_cat"
+            # main uses the shared catalog; other branches get a per-branch one.
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              cat_name="dbr_dbc_cat"
+            else
+              cat_name="${branch_cat}_dbr_dbc_cat"
+            fi
             # Share the computed catalog and branch slug with later steps (deploy).
             echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
             echo "BRANCH_SLUG=${branch_cat}" >> "$GITHUB_ENV"
@@ -105,6 +110,11 @@ jobs:
           DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
           DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
         run: |
-            # Reuse the catalog and branch slug computed in Apply ddl (via $GITHUB_ENV);
-            # branch isolates this branch's job from other branches'.
-            databricks bundle deploy -t dev --var="catalog=${CAT_NAME}" --var="branch=${BRANCH_SLUG}"
+            # Reuse the catalog computed in Apply ddl (via $GITHUB_ENV). main uses
+            # the canonical, non-branch-scoped target; other branches use the
+            # branch-isolated dev target.
+            if [ "$GITHUB_REF_NAME" = "main" ]; then
+              databricks bundle deploy -t main --var="catalog=${CAT_NAME}"
+            else
+              databricks bundle deploy -t dev --var="catalog=${CAT_NAME}" --var="branch=${BRANCH_SLUG}"
+            fi
