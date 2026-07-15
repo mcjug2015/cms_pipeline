@@ -1,6 +1,15 @@
 resources:
+  sql_warehouses:
+    metrics_warehouse:
+      name: "metrics warehouse"
+      warehouse_type: PRO
+      enable_serverless_compute: true
+      cluster_size: "2X-Small"
+      max_num_clusters: 1
+      auto_stop_mins: 10
+
   dashboards:
     metrics_over_time:
       display_name: "MetricsOver Time"
-      warehouse_id: 562d03b934263ec9
+      warehouse_id: ${resources.sql_warehouses.metrics_warehouse.id}
       file_path: ../src/metrics_over_time.lvdash.json
