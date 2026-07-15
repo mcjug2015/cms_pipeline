@@ -1,5 +1,8 @@
 import os
 
+from delta import configure_spark_with_delta_pip  # type: ignore
+from pyspark.sql.session import SparkSession
+
 
 def is_dbr():
     try:
@@ -17,14 +20,25 @@ def get_spark(use_dbc=False):
 
         os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"
         return DatabricksSession.builder.getOrCreate()
-    from pyspark.sql.session import SparkSession
 
-    spark = (
-        SparkSession.builder.appName("Testing PySpark Example")
-        .config(
-            "spark.sql.warehouse.dir",
-            os.path.join(os.path.dirname(__file__), "..", "spark-warehouse"),
-        )
-        .getOrCreate()
+    warehouse_dir = os.environ.get(
+        "SPARK_WAREHOUSE_DIR",
+        os.path.join(os.path.dirname(__file__), "..", "spark-warehouse"),
     )
-    return spark
+    builder = (
+        SparkSession.builder.appName("Testing PySpark Example")
+        .config("spark.sql.warehouse.dir", warehouse_dir)
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
+        .config("spark.sql.sources.default", "delta")
+    )
+    metastore_dir = os.environ.get("SPARK_METASTORE_DIR")
+    if metastore_dir:
+        builder = builder.config(
+            "javax.jdo.option.ConnectionURL",
+            f"jdbc:derby:;databaseName={metastore_dir};create=true",
+        )
+    return configure_spark_with_delta_pip(builder).getOrCreate()

@@ -34,17 +34,17 @@ class AbstractBenchmark(ABC):
         pass
 
     def save_metric(self, metric):
+        # Inline literals rather than :named params: pyspark's local session does
+        # not bind spark.sql(..., args=...) parameters. Single quotes are escaped
+        # to keep the SQL well-formed; current_timestamp() avoids a datetime literal.
+        metric_id = str(uuid.uuid4())
+        metric_name = self.metric_name.replace("'", "''")
+        payload = json.dumps(metric).replace("'", "''")
         self.spark.sql(
             f"""
             insert into {self.cat}.{self.schema}.metrics (id, metric_name, payload, last_updated)
-            values (:id, :metric_name, parse_json(:payload), :last_updated)
-            """,
-            args={
-                "id": str(uuid.uuid4()),
-                "metric_name": self.metric_name,
-                "payload": json.dumps(metric),
-                "last_updated": datetime.datetime.now(),
-            },
+            values ('{metric_id}', '{metric_name}', parse_json('{payload}'), current_timestamp())
+            """
         )
 
     def execute(self):
@@ -56,6 +56,8 @@ class AbstractBenchmark(ABC):
 class SingleRowInsert(AbstractBenchmark):
 
     def benchmark(self) -> Dict[str, Any]:
+        df = self.spark.table(f"{self.cat}.{self.schema}.test_table")
+        print(df.columns)
         stuff = f"QQPP{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}"
         start = time.perf_counter()
         self.spark.sql(
