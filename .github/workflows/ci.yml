@@ -110,7 +110,9 @@ jobs:
             # the canonical, non-branch-scoped target; other branches use the
             # branch-isolated dev target.
             if [ "$GITHUB_REF_NAME" = "main" ]; then
+              databricks bundle validate -t main --var="catalog=${CAT_NAME}"
               databricks bundle deploy -t main --var="catalog=${CAT_NAME}"
             else
+              databricks bundle validate -t dev --var="catalog=${CAT_NAME}" --var="branch=${BRANCH_SLUG}"
               databricks bundle deploy -t dev --var="catalog=${CAT_NAME}" --var="branch=${BRANCH_SLUG}"
             fi
