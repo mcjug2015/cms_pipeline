@@ -1,5 +1,5 @@
 {
-  "datasets": [
+  "name": "Performance Metrics Dashboard",
     {
       "config": {
         "dimensions": [
