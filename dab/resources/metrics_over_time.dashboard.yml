@@ -6,3 +6,6 @@ resources:
       file_path: ../src/metrics_over_time.lvdash.json
       dataset_catalog: ${var.catalog}
       dataset_schema: ${var.schema}
+      permissions:
+        - group_name: "users_and_sps"
+          level: CAN_MANAGE
