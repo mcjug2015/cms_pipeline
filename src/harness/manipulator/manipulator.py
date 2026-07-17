@@ -256,6 +256,7 @@ def main(*args, **kwargs):
         raise ValueError(
             f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};"
         )
+    logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
     SingleRowInsert(spark, cat, schema).execute()
     ClusterRoundtripLatency(spark, cat, schema, iterations=5).execute()
