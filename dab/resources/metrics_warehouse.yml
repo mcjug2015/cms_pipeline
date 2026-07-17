@@ -1,9 +1,0 @@
-resources:
-  warehouses:
-    metrics_warehouse:
-      display_name: "Metrics Warehouse"
-      description: "Warehouse for metrics dashboard computations"
-      enable_sql_access: true
-      storage_format: "DELTA"
-      size: "2X-SMALL"
-      compute_type: "SERVERLESS"
