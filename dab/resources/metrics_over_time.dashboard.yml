@@ -2,5 +2,5 @@ resources:
   dashboards:
     metrics_over_time:
       display_name: "MetricsOver Time"
-      warehouse_id: 562d03b934263ec9
+      warehouse_id: ${WHAREHOUSE_ID}
       file_path: ../src/metrics_over_time.lvdash.json
