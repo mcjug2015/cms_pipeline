@@ -50,10 +50,10 @@ def use_migration_file(fname):
     return False
 
 
-def migrate(spark, output_folder, cat: str, schema: str):
+def migrate(spark, output_folder, cat: str, schema: str, package_path: str):
     env = Environment(
         loader=PackageLoader(
-            package_name="src.crutch_migrations", package_path="migrations"
+            package_name="src.crutch_migrations", package_path=package_path
         ),
         autoescape=select_autoescape(),
     )
@@ -78,7 +78,8 @@ def run_migrations(spark, cat, schema, output_folder=None):
             os.path.join(os.path.dirname(__file__), "migrations_out")
         )
     os.makedirs(output_folder)
-    migrate(spark, output_folder, cat, schema)
+    migrate(spark, output_folder, cat, schema, "migrations")
+    migrate(spark, output_folder, cat, schema, "dml_migrations")
 
 
 def main(cat, schema):
