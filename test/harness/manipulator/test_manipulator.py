@@ -17,7 +17,9 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 
 @mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
 def test_abstract_benchmark_save_metric(migrated_test_spark):
-    bmrk = AbstractBenchmark(migrated_test_spark, cat="spark_catalog", schema="default")
+    bmrk = AbstractBenchmark(
+        migrated_test_spark, cat="spark_catalog", schema="default", the_batch_id="7"
+    )
     bmrk.save_metric({"testing": "testing"})
     sql_result = migrated_test_spark.sql("select * from spark_catalog.default.metrics;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
@@ -29,7 +31,7 @@ def test_abstract_benchmark_save_metric(migrated_test_spark):
 @mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.save_metric")
 @mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.benchmark")
 def test_abstract_benchmark_execute(benchmark, save_metric):
-    bmrk = AbstractBenchmark(None, cat=None, schema=None)
+    bmrk = AbstractBenchmark(None, cat=None, schema=None, the_batch_id=None)
     bmrk.execute()
     benchmark.assert_called_once()
     save_metric.assert_called_once()
@@ -37,7 +39,7 @@ def test_abstract_benchmark_execute(benchmark, save_metric):
 
 def test_single_row_insert(migrated_test_spark):
     SingleRowInsert(
-        migrated_test_spark, cat="spark_catalog", schema="default"
+        migrated_test_spark, cat="spark_catalog", schema="default", the_batch_id="7"
     ).benchmark()
     sql_result = migrated_test_spark.sql(
         "select * from spark_catalog.default.test_table order by int_id desc;"
@@ -50,7 +52,11 @@ def test_single_row_insert(migrated_test_spark):
 
 def test_cluster_roundtrip_latency(test_spark):
     result = ClusterRoundtripLatency(
-        test_spark, cat="spark_catalog", schema="default", iterations=1
+        test_spark,
+        cat="spark_catalog",
+        schema="default",
+        the_batch_id="7",
+        iterations=1,
     ).benchmark()
     assert result["iterations"] == 1
     assert result["total_seconds"] > 0
@@ -58,7 +64,7 @@ def test_cluster_roundtrip_latency(test_spark):
 
 def test_range_aggregation(test_spark):
     result = RangeAggregation(
-        test_spark, cat="spark_catalog", schema="default", num_rows=1
+        test_spark, cat="spark_catalog", schema="default", the_batch_id="7", num_rows=1
     ).benchmark()
     assert result["num_rows"] == 1
     assert result["total_seconds"] >= 0
@@ -66,7 +72,12 @@ def test_range_aggregation(test_spark):
 
 def test_shuffle_group_by(test_spark):
     result = ShuffleGroupBy(
-        test_spark, cat="spark_catalog", schema="default", num_rows=1, num_groups=1
+        test_spark,
+        cat="spark_catalog",
+        schema="default",
+        the_batch_id="7",
+        num_rows=1,
+        num_groups=1,
     ).benchmark()
     assert result["num_rows"] == 1
     assert result["num_groups"] == 1
@@ -75,7 +86,7 @@ def test_shuffle_group_by(test_spark):
 
 def test_collect_bandwidth(test_spark):
     result = CollectBandwidth(
-        test_spark, cat="spark_catalog", schema="default", num_rows=1
+        test_spark, cat="spark_catalog", schema="default", the_batch_id="7", num_rows=1
     ).benchmark()
     assert result["num_rows"] == 1
     assert result["rows_collected"] == 1
@@ -84,7 +95,7 @@ def test_collect_bandwidth(test_spark):
 
 def test_python_udf_overhead(test_spark):
     result = PythonUdfOverhead(
-        test_spark, cat="spark_catalog", schema="default", num_rows=1
+        test_spark, cat="spark_catalog", schema="default", the_batch_id="7", num_rows=1
     ).benchmark()
     assert result["num_rows"] == 1
     assert result["total_seconds"] >= 0

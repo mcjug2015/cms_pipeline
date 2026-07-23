@@ -8,6 +8,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+from uuid import uuid4
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -23,11 +24,12 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 
 
 class AbstractBenchmark(ABC):
-    def __init__(self, spark: SparkSession, cat: str, schema: str):
+    def __init__(self, spark: SparkSession, cat: str, schema: str, the_batch_id: str):
         self.spark = spark
         self.cat = cat
         self.schema = schema
         self.metric_name = self.__class__.__name__
+        self.the_batch_id = the_batch_id
 
     @abstractmethod
     def benchmark(self) -> Dict[str, Any]:
@@ -42,8 +44,8 @@ class AbstractBenchmark(ABC):
         payload = json.dumps(metric).replace("'", "''")
         self.spark.sql(
             f"""
-            insert into {self.cat}.{self.schema}.metrics (id, metric_name, payload, last_updated)
-            values ('{metric_id}', '{metric_name}', parse_json('{payload}'), current_timestamp())
+            insert into {self.cat}.{self.schema}.metrics (id, metric_name, payload, metric_batch_id, last_updated)
+            values ('{metric_id}', '{metric_name}', parse_json('{payload}'), '{self.the_batch_id}', current_timestamp())
             """
         )
 
@@ -73,9 +75,14 @@ class SingleRowInsert(AbstractBenchmark):
 
 class ClusterRoundtripLatency(AbstractBenchmark):
     def __init__(
-        self, spark: SparkSession, cat: str, schema: str, iterations: int = 50
+        self,
+        spark: SparkSession,
+        cat: str,
+        schema: str,
+        the_batch_id: str,
+        iterations: int = 50,
     ):
-        super().__init__(spark, cat, schema)
+        super().__init__(spark, cat, schema, the_batch_id)
         self.iterations = iterations
 
     def benchmark(self) -> Dict[str, Any]:
@@ -106,9 +113,14 @@ class ClusterRoundtripLatency(AbstractBenchmark):
 
 class RangeAggregation(AbstractBenchmark):
     def __init__(
-        self, spark: SparkSession, cat: str, schema: str, num_rows: int = 50_000_000
+        self,
+        spark: SparkSession,
+        cat: str,
+        schema: str,
+        the_batch_id: str,
+        num_rows: int = 50_000_000,
     ):
-        super().__init__(spark, cat, schema)
+        super().__init__(spark, cat, schema, the_batch_id)
         self.num_rows = num_rows
 
     def benchmark(self) -> Dict[str, Any]:
@@ -139,10 +151,11 @@ class ShuffleGroupBy(AbstractBenchmark):
         spark: SparkSession,
         cat: str,
         schema: str,
+        the_batch_id: str,
         num_rows: int = 20_000_000,
         num_groups: int = 1000,
     ):
-        super().__init__(spark, cat, schema)
+        super().__init__(spark, cat, schema, the_batch_id)
         self.num_rows = num_rows
         self.num_groups = num_groups
 
@@ -176,9 +189,14 @@ class ShuffleGroupBy(AbstractBenchmark):
 
 class CollectBandwidth(AbstractBenchmark):
     def __init__(
-        self, spark: SparkSession, cat: str, schema: str, num_rows: int = 1_000_000
+        self,
+        spark: SparkSession,
+        cat: str,
+        schema: str,
+        the_batch_id: str,
+        num_rows: int = 1_000_000,
     ):
-        super().__init__(spark, cat, schema)
+        super().__init__(spark, cat, schema, the_batch_id)
         self.num_rows = num_rows
 
     def benchmark(self) -> Dict[str, Any]:
@@ -210,9 +228,14 @@ class CollectBandwidth(AbstractBenchmark):
 
 class PythonUdfOverhead(AbstractBenchmark):
     def __init__(
-        self, spark: SparkSession, cat: str, schema: str, num_rows: int = 5_000_000
+        self,
+        spark: SparkSession,
+        cat: str,
+        schema: str,
+        the_batch_id: str,
+        num_rows: int = 5_000_000,
     ):
-        super().__init__(spark, cat, schema)
+        super().__init__(spark, cat, schema, the_batch_id)
         self.num_rows = num_rows
 
     def benchmark(self) -> Dict[str, Any]:
@@ -256,13 +279,17 @@ def main(*args, **kwargs):
         raise ValueError(
             f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};"
         )
+    logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    SingleRowInsert(spark, cat, schema).execute()
-    ClusterRoundtripLatency(spark, cat, schema, iterations=5).execute()
-    RangeAggregation(spark, cat, schema, num_rows=5000).execute()
-    ShuffleGroupBy(spark, cat, schema, num_rows=5000, num_groups=2).execute()
-    CollectBandwidth(spark, cat, schema, num_rows=5000).execute()
-    PythonUdfOverhead(spark, cat, schema, num_rows=5000).execute()
+    the_batch_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid4()}"  # noqa: E501
+    SingleRowInsert(spark, cat, schema, the_batch_id).execute()
+    ClusterRoundtripLatency(spark, cat, schema, the_batch_id, iterations=5).execute()
+    RangeAggregation(spark, cat, schema, the_batch_id, num_rows=5000).execute()
+    ShuffleGroupBy(
+        spark, cat, schema, the_batch_id, num_rows=5000, num_groups=2
+    ).execute()
+    CollectBandwidth(spark, cat, schema, the_batch_id, num_rows=5000).execute()
+    PythonUdfOverhead(spark, cat, schema, the_batch_id, num_rows=5000).execute()
     logger.info("main manipulator end")
 
 

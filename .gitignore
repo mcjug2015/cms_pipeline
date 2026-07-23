@@ -11,3 +11,4 @@
 /.mypy_cache/
 /.pytest_cache/
 /local_log.log
+.aider*

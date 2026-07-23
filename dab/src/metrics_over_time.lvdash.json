@@ -42,7 +42,7 @@
             "name": "record_count"
           }
         ],
-        "source": "dbr_dbc_cat.testing_testing.metrics",
+        "source": "metrics",
         "version": "1.1"
       },
       "displayName": "Metrics Over Time",
