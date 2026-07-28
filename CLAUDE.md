@@ -1,0 +1,138 @@
+# CLAUDE.md
+
+Guidance for working in this repo. **Focus: code quality.** Every change must pass the
+same gates CI enforces before it is considered done.
+
+## What this project is
+
+A PySpark / Delta Lake harness that ingests and profiles data, plus SQL "crutch"
+migrations and a Databricks Asset Bundle (DAB) deployment. Python **3.12.3**, built and
+tested with **Pants 2.30.0**. Runs both locally (open-source Spark + Delta) and on
+Databricks (`databricks-connect`).
+
+Layout:
+- `src/` — library code (resolve `python-default`).
+  - `src/spark_utils.py` — `get_spark()` / `is_dbr()`: the single entry point for a Spark session.
+  - `src/custom_logging.py` — logging config; use it, don't `print`.
+  - `src/harness/manipulator/` — the manipulator job + unwrapper.
+  - `src/crutch_migrations/` — SQL migration runner and `migrations/` files.
+- `test/` — tests (resolve `py-reqs-dev`).
+- `dab/` — Databricks Asset Bundle (`databricks.yml`, `resources/`).
+- `.github/workflows/ci.yml` — the source of truth for the quality gates below.
+
+
+## Laws of unit testing
+- The unit under test should always be a single python function or method from src/.
+- A unit test may not invoke its unit more than once.
+- A test may not invoke any part of src/ other than its unit.
+- Do not create abstract class implementations that only serve tests, use `__abstractmethods__=set()` instead.
+- Always mock/patch other methods from our source that are invoked from the unit under test.
+- Whenever mocking/patching is done, assert_called must verify that the expected call took place, or did not if that is what should have happenned.
+- Use `test_spark` or `migrated_test_spark` whenever spark is is invoked in the unit under test.
+- File, zip and worksheet operations in the unit under test should be tested with trivial dummy files instead of being mocked.
+- The line and branch coverage of one test may not be fully overlapped by the coverage of another test. Keep the test that covers more, delete the other one.
+- Every test must add unique line or branch coverage that isn't supplied by any other test.
+- If the `__init__` method of the class whose method is under test does anything besides trivial assignment and call to super, it should be mocked, or the functionality moved into its own (private)method.
+- If the `__init__` method and its chain of `super().__init__()` only do simple variable assignment they should not be mocked.
+- Whenever feasible src/ should not be changed in order enable testing.
+
+
+## Laws of integration testing
+- Integration tests should not contribute to coverage, that should only come from unit tests.
+- Integration tests should test individual tasks the src/ code might be expected to perform.
+- Integration tests are free to mock or patch if using real src/ code would detract from focus.
+
+
+## The quality gates — run these before calling anything done
+
+Always go through Pants, never bare `python`/`pytest` (Delta needs the JVM classpath
+Pants assembles; bare `pytest` fails with Delta classpath errors).
+
+```bash
+# Format + lint + typecheck (black, isort, flake8, mypy) — must be clean
+pants fmt lint check src/ test/
+
+# Run the full test suite with coverage
+pants test --test-force --use-coverage test/::
+
+# Scope to one file/selector while iterating
+pants test --test-force test/harness/manipulator/test_manipulator.py
+pants test --test-force test/harness/manipulator/test_manipulator.py -- -k <expr>
+
+# Build the wheel (CI does this; do it if you touched packaging)
+pants package src/
+```
+
+Non-negotiable gates (from `ci.yml`):
+1. `pants lint check src/ test/` is clean — this is `black`, `isort`, `flake8`, `mypy`.
+2. All tests pass via `pants test test/::`.
+3. Branch coverage over `src/` stays **≥ 85%** (`fail_under = 85` under `[coverage-py]` in
+   `pants.toml`). It belongs there, not in `pyproject.toml`: coverage.py's own `fail_under`
+   is applied to each test partition separately, so a single test file gets failed for not
+   covering the rest of `src/` on its own.
+   New code needs tests; don't lower the threshold to make a change pass.
+
+If you can't run these, say so explicitly rather than claiming the change is verified.
+
+## Style — match the tooling, not your preferences
+
+- **Line length is 120** (`black`, `.flake8`, isort all agree). Let `black` and `isort`
+  do the formatting; never hand-format to fight them.
+- Imports: sorted by `isort` with the `black` profile. Prefer top-of-file imports;
+  defer an import into a function only to gate an optional/env-specific dependency
+  (see the Databricks-only imports inside `get_spark`/`is_dbr`).
+- **Type hints + mypy.** `mypy` runs in `check`. Third-party imports without stubs get a
+  narrow `# type: ignore` (e.g. `delta`, `pyspark.dbutils`) — keep it on the specific
+  import line, not blanket-ignored, and add `# noqa: F401` only when the import exists
+  purely as a capability probe.
+- **Logging, not prints.** Configure via `src/custom_logging.py`; get a module logger and
+  log at appropriate levels.
+- Keep functions small and single-purpose; prefer pure helpers that are unit-testable
+  without a Spark session where possible.
+
+## Spark / Delta conventions
+
+- **Get a session only through `get_spark()`** (`src/spark_utils.py`). It transparently
+  returns a `DatabricksSession` on DBR and a Delta-configured local `SparkSession`
+  otherwise. Don't build `SparkSession.builder` ad hoc elsewhere.
+- Local storage locations come from `SPARK_WAREHOUSE_DIR` / `SPARK_METASTORE_DIR` env
+  vars. Tests isolate these per-session (see `test/conftest.py`); never hardcode a
+  warehouse/metastore path in code or tests.
+- Code must work in **both** modes (local OSS Spark and Databricks). Gate DBR-only
+  behaviour behind `is_dbr()`, and gate DBR-only imports inside the function that uses them.
+
+## SQL migrations (`src/crutch_migrations/`)
+
+- Migration files are named `YYYYMMDD_N_<scope>.sql`, where `<scope>` is one of:
+  - `all` — runs everywhere (local + Databricks),
+  - `dbr_only` — Databricks-only
+  Pick the scope deliberately; SQL that only one engine supports must not be `all`.
+- **Migrations must be idempotent.** The test harness runs them **twice** on purpose to
+  catch non-idempotent DDL/DML (`migrated_test_spark` in `conftest.py`). Databricks does
+  **not** support `IF NOT EXISTS` on `ALTER TABLE ... ADD COLUMN` — guard idempotent
+  column adds with an `information_schema.columns` check instead.
+
+## Pants / BUILD discipline
+
+- Every new source directory needs a `BUILD` file. Library code uses
+  `python_sources(name="lib")`; the parallel `python_sources(name="lib_test", resolve="py-reqs-dev")`
+  target exposes the same code to the test resolve.
+- Two resolves exist: `python-default` (src) and `py-reqs-dev` (test). Add runtime deps to
+  `src/requirements.txt`, test-only deps to `test/requirements-dev.txt`, then regenerate:
+  `pants generate-lockfiles`. Don't edit lockfiles by hand.
+- Console entry points and the wheel are defined in `src/BUILD` (`python_distribution`).
+
+## Testing standards
+
+- Tests live under `test/`, mirroring the `src/` package path, with a `BUILD` per dir.
+- Use the shared fixtures in `test/conftest.py` (`test_spark`, `migrated_test_spark`)
+  rather than spinning up Spark yourself.
+- A change to `src/` without a corresponding test is incomplete — coverage is gated and
+  CI also enforces a minimum test count.
+
+## Before you finish a change
+
+1. `pants fmt lint check src/ test/` — clean.
+2. `pants test --test-force --use-coverage test/::` — green, coverage ≥ 85%.
+3. New/changed behaviour has tests; migrations are idempotent (run-twice safe).
+4. Nothing hardcodes environment-specific paths, credentials, warehouse ids, or catalogs.

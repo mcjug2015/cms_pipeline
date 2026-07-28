@@ -13,7 +13,3 @@ profile = "black"
 
 [tool.coverage.run]
 branch = true
-
-
-[tool.coverage.report]
-fail_under = 85
