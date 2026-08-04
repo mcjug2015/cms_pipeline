@@ -1,0 +1,25 @@
+resources:
+  jobs:
+    scratchpad_job:
+      name: scratchpad job (${bundle.target})
+      tasks:
+        - task_key: scratchpad_whl_task
+          python_wheel_task:
+            package_name: src.harness.manipulator.manipulator
+            entry_point: run_scratchpad
+            parameters:
+              - ${var.catalog}
+              - ${var.schema}
+          environment_key: scratchpad_whl_task_environment
+      queue:
+        enabled: true
+      environments:
+        - environment_key: scratchpad_whl_task_environment
+          spec:
+            environment_version: "5"
+            dependencies:
+              - ../../dist/src_harness_manipulator_manipulator-0.0.1-py3-none-any.whl
+      performance_target: PERFORMANCE_OPTIMIZED
+      permissions:
+        - group_name: users_and_sps
+          level: CAN_MANAGE

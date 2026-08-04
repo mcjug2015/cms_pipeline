@@ -24,3 +24,4 @@ search_path = ["<PATH>", "<PYENV>"]
 filter = ["src"]
 report = ["console"]
 global_report = true
+fail_under = 83

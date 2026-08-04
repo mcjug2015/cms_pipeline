@@ -7,6 +7,12 @@ python_sources(
     resolve="py-reqs-dev",
 )
 
+python_tests(
+    name="tests",
+    dependencies=["src:lib_test"],
+    resolve="py-reqs-dev",
+)
+
 python_test_utils(
     name="test_utils",
     resolve="py-reqs-dev",
