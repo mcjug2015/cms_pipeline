@@ -11,21 +11,20 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 
 class Unwrapper:
 
-    def __init__(self, outer_zip_path: str, inner_file_name: str):
-        self.outer_zip_path = outer_zip_path
+    def __init__(self, inner_file_name: str):
         self.inner_file_name = inner_file_name
 
     @contextmanager
-    def unwrap(self):
+    def unwrap(self, local_zip_path):
         extract_root = tempfile.mkdtemp(prefix="unwrap_")
         try:
-            yield self._find_target(extract_root)
+            yield self._find_target(local_zip_path, extract_root)
         finally:
             shutil.rmtree(extract_root, ignore_errors=True)
 
-    def _find_target(self, extract_root: str) -> str:
+    def _find_target(self, local_zip_path: str, extract_root: str) -> str:
         # zips still to extract; nested zips get appended as they are discovered
-        pending = [self.outer_zip_path]
+        pending = [local_zip_path]
         seq = 0
         while pending:
             zip_path = pending.pop()
@@ -49,11 +48,5 @@ class Unwrapper:
                     if name.lower().endswith(".zip"):
                         pending.append(full_path)
         raise FileNotFoundError(
-            f"{self.inner_file_name} not found within {self.outer_zip_path}"
+            f"{self.inner_file_name} not found within {local_zip_path}"
         )
-
-
-class TotOrigMeMaOhpEnrollUnwrapper(Unwrapper):
-
-    def __init__(self, outer_zip_path: str):
-        super().__init__(outer_zip_path, "MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx")

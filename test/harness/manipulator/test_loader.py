@@ -1,156 +1,95 @@
-import sys
-import zipfile
-from pathlib import Path
+import os
 from unittest import mock
 
-import pytest
-from openpyxl import Workbook
+from src.harness.manipulator.loader import AbstractLoader
 
-from src.harness.manipulator import loader
-
-
-def _build_source_zip(tmp_path):
-    workbook = Workbook()
-    cover = workbook.worksheets[0]
-    cover.title = "Cover"
-    cover["A1"] = "cover page, not the target sheet"
-
-    worksheet = workbook.create_sheet("US Total")
-    worksheet.append(["CMS Program Statistics"])
-    worksheet.append(["SOURCE:", "CMS Chronic Conditions Data Warehouse"])
-    worksheet.append(
-        [
-            "Year",
-            "Total Enrollment",
-            "% Incr",
-            "Orig ME Enroll",
-            "% Incr",
-            "% of Total",
-            "MA/OHP Enroll",
-            "% Incr",
-            "% of Total",
-        ]
-    )
-    worksheet.append(
-        [
-            2022,
-            "65,000,000",
-            "2.1%",
-            "35,000,000",
-            "1.0%",
-            "53.8%",
-            "30,000,000",
-            "3.5%",
-            "46.2%",
-        ]
-    )
-    worksheet.append([2023, 68499235, 3.4, 34000000, -1.0, 49.6, 34499235, 8.0, 50.4])
-    worksheet.append(["NOTES:", "Totals may not sum due to rounding."])
-
-    xlsx_path = tmp_path / "MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx"
-    workbook.save(xlsx_path)
-
-    zip_path = tmp_path / "CMS Program Statistics - Medicare Total Enrollment.zip"
-    with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.write(xlsx_path, arcname="MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx")
-    return str(zip_path)
+RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
-def test_download_s3_zip_writes_source_content_to_dest_dir(test_spark, tmp_path):
-    source_dir = tmp_path / "source"
-    source_dir.mkdir()
-    source_path = source_dir / "some name.zip"
-    source_path.write_bytes(b"dummy zip bytes")
-
-    dest_dir = tmp_path / "dest"
-    dest_dir.mkdir()
-
-    dest_path = loader.download_s3_zip(
-        test_spark, f"file://{source_path}", str(dest_dir)
-    )
-
-    assert dest_path == str(dest_dir / "some name.zip")
-    assert Path(dest_path).read_bytes() == b"dummy zip bytes"
-
-
-def test_parse_sheet_splits_preamble_from_data_rows(tmp_path):
-    zip_path = _build_source_zip(tmp_path)
-    with loader.TotOrigMeMaOhpEnrollUnwrapper(zip_path).unwrap() as xlsx_path:
-        sheet_name, kvp_rows, data_rows = loader.parse_sheet(xlsx_path)
-
-    assert sheet_name == "US Total"
-    assert {"table_key": "CMS Program Statistics", "table_value": ""} in kvp_rows
-    assert {
-        "table_key": "SOURCE:",
-        "table_value": "CMS Chronic Conditions Data Warehouse",
-    } in kvp_rows
-    assert len(data_rows) == 2
-    assert data_rows[0] == {
-        "row_yr": 2022,
-        "tot_enroll": 65000000.0,
-        "tot_enroll_pct_increase_prior_yr": 2.1,
-        "tot_orig_me_enroll": 35000000.0,
-        "tot_orig_me_enroll_pct_increase_prior_yr": 1.0,
-        "tot_orig_me_pct_of_tot_enroll": 53.8,
-        "tot_ma_ohp_enroll": 30000000.0,
-        "tot_ma_ohp_enroll_pct_increase_prior_yr": 3.5,
-        "tot_ma_ohp_enroll_pct_of_tot_enroll": 46.2,
-    }
-    assert data_rows[1]["row_yr"] == 2023
-    assert data_rows[1]["tot_enroll"] == 68499235.0
-
-
-def test_to_float_returns_none_for_none_and_blank_text():
-    assert loader._to_float(None) is None
-    assert loader._to_float("   ") is None
-
-
-def test_parse_sheet_skips_blank_rows(tmp_path):
-    workbook = Workbook()
-    workbook.worksheets[0].title = "Cover"
-    worksheet = workbook.create_sheet("US Total")
-    worksheet.append(["CMS Program Statistics"])
-    worksheet.append([])
-    worksheet.append([2023, 68499235, 3.4, 34000000, -1.0, 49.6, 34499235, 8.0, 50.4])
-    xlsx_path = tmp_path / "blank_row.xlsx"
-    workbook.save(xlsx_path)
-
-    sheet_name, _, data_rows = loader.parse_sheet(str(xlsx_path))
-
-    assert sheet_name == "US Total"
-    assert len(data_rows) == 1
-    assert data_rows[0]["row_yr"] == 2023
-
-
-def test_sql_literal_handles_none_and_booleans():
-    assert loader._sql_literal(None) == "NULL"
-    assert loader._sql_literal(True) == "true"
-    assert loader._sql_literal(False) == "false"
-
-
-def test_insert_kvp_rows_noop_when_empty():
-    spark = mock.Mock()
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+@mock.patch(
+    "src.harness.manipulator.loader.convert_to_key", return_value="test converted key"
+)
+def test_insert_kvp_rows_success(convert_to_key, migrated_test_spark):
+    loader = AbstractLoader("test inner file name")
     loader.insert_kvp_rows(
-        spark, "cat", "schema", "load_id", "zip", "[]", "unzipped", "sheet", []
+        migrated_test_spark,
+        cat="spark_catalog",
+        schema="default",
+        load_id="test_load_id",
+        zip_name="test zip name",
+        unzipped_name="test unzipped",
+        sheet_name="test sheet name",
+        sheet_index=0,
+        data_rows=[{"test_key": "test_val"}],
     )
-    spark.sql.assert_not_called()
-
-
-def test_insert_data_rows_noop_when_empty():
-    spark = mock.Mock()
-    loader.insert_data_rows(
-        spark, "cat", "schema", "load_id", "zip", "[]", "unzipped", "sheet", []
+    sql_result = migrated_test_spark.sql(
+        "select * from spark_catalog.default.open_cms_data_kvp;"
     )
-    spark.sql.assert_not_called()
+    results = [x.asDict() for x in sql_result.toLocalIterator()]
+    assert len(results) == 1
+    assert results[0]["load_id"] == "test_load_id"
+    assert results[0]["table_key"] == "test_key"
+    assert results[0]["table_key_simple"] == "test converted key"
+    assert results[0]["table_val"] == "test_val"
+    convert_to_key.assert_called_once()
 
 
-@mock.patch("src.harness.manipulator.loader.load")
-@mock.patch("src.harness.manipulator.loader.get_spark")
-def test_main_raises_when_cat_and_schema_missing(
-    mock_get_spark, mock_load, monkeypatch
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+@mock.patch(
+    "src.harness.manipulator.loader.download_s3_zip", return_value="/i/am/not/real"
+)
+@mock.patch(
+    "src.harness.manipulator.loader.AbstractLoader.get_s3_zip_uri",
+    return_value="test_fake_s3_uri",
+)
+@mock.patch(
+    "src.harness.manipulator.loader.Unwrapper.unwrap",
+)
+@mock.patch(
+    "src.harness.manipulator.loader.AbstractLoader.parse_sheet",
+    return_value=(77, [{"i am a fake": "data row"}]),
+)
+@mock.patch("src.harness.manipulator.loader.AbstractLoader.insert_kvp_rows")
+def test_load_success(
+    insert_kvp_rows, parse_sheet, unwrap, get_s3_zip_uri, download_s3_zip
 ):
-    monkeypatch.setattr(sys, "argv", ["loader.py", "", ""])
-    with pytest.raises(ValueError):
-        loader.main()
-    mock_load.assert_not_called()
-    mock_get_spark.assert_not_called()
+    parse_sheet.return_value = (3, [{"test_key": "test_val"}])
+    spark = mock.MagicMock(name="spark")
+    unwrap.return_value.__enter__.return_value = "/fake/xlsx"
+
+    loader = AbstractLoader("test inner file name")
+    result = loader.load(spark, "test_cat", "test_schema")
+
+    assert result["data_rows"] == 1
+    insert_kvp_rows.assert_called_once()
+    parse_sheet.assert_called_once()
+    unwrap.assert_called_once()
+    get_s3_zip_uri.assert_called_once()
+    download_s3_zip.assert_called_once()
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+@mock.patch(
+    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    return_value="TestSheet",
+)
+@mock.patch(
+    "src.harness.manipulator.loader.AbstractLoader.get_first_header_cell_val",
+    return_value="Year",
+)
+def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name):
+    loader = AbstractLoader("test inner file name")
+
+    sheet_index, data_rows = loader.parse_sheet(
+        os.path.join(RES_DIR, "parse_sheet_sample.xlsx")
+    )
+
+    assert sheet_index == 0
+    assert data_rows == [
+        {"Year": "2023", "Metric": "TotalEnroll", "Value": "100"},
+        {"Year": "2024", "Metric": "TotalEnroll", "Value": "200"},
+    ]
+    get_sheet_name.assert_called_once()
+    # called once per header-scan row until the header ("Year") is matched
+    assert get_first_header_cell_val.call_count == 2

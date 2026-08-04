@@ -35,6 +35,8 @@ Layout:
 - If the `__init__` method of the class whose method is under test does anything besides trivial assignment and call to super, it should be mocked, or the functionality moved into its own (private)method.
 - If the `__init__` method and its chain of `super().__init__()` only do simple variable assignment they should not be mocked.
 - Whenever feasible src/ should not be changed in order enable testing.
+- Avoid negative assertions, esp `assert_not_called..`. It's hard to keep them up to date as them become irrelevant.
+- Don't test raises(exceptions) that are never mentioned in the unit under test. If they would happen in the code below and pass through to the code above, they are not a concern for the test.
 
 
 ## Laws of integration testing
