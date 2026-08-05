@@ -11,5 +11,5 @@ resources(
 
 resources(
     name="loader_res",
-    sources=["res/parse_sheet_sample.xlsx"],
+    sources=["res/parse_sheet_sample.xlsx", "res/parse_sheet_no_rows_sample.xlsx"],
 )

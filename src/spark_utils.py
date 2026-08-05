@@ -9,7 +9,7 @@ def is_dbr():
         from pyspark.dbutils import DBUtils  # type: ignore # noqa: F401
 
         # This will only succeed if the Databricks environment is available
-        return True
+        return True  # pragma: no cover
     except Exception:
         return False
 

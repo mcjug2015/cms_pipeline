@@ -1,5 +1,7 @@
 from unittest import mock
 
+import pytest
+
 from src import custom_logging
 from src.harness.manipulator import manipulator
 from src.harness.manipulator.manipulator import (
@@ -132,3 +134,13 @@ def test_main_calls_execute_on_benchmarks(
     ):
         benchmark_class.return_value.execute.assert_called_once()
     mock_get_spark.assert_called_once()
+
+
+@mock.patch(
+    "src.harness.manipulator.manipulator.sys.argv",
+    ["manipulator.py", "", "argv_schema"],
+)
+def test_main_raises_when_no_cat_or_schema():
+    """main() should raise if neither kwargs nor sys.argv supply both cat and schema."""
+    with pytest.raises(ValueError, match="Expecting both cat and schema"):
+        manipulator.main()

@@ -36,6 +36,23 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_test_spark):
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_insert_kvp_rows_no_rows():
+    loader = AbstractLoader("test inner file name")
+    result = loader.insert_kvp_rows(
+        None,
+        cat=None,
+        schema=None,
+        load_id=None,
+        zip_name=None,
+        unzipped_name=None,
+        sheet_name=None,
+        sheet_index=0,
+        data_rows=[],
+    )
+    assert result == 0
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
     "src.harness.manipulator.loader.download_s3_zip", return_value="/i/am/not/real"
 )
@@ -93,3 +110,20 @@ def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name
     get_sheet_name.assert_called_once()
     # called once per header-scan row until the header ("Year") is matched
     assert get_first_header_cell_val.call_count == 2
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+@mock.patch(
+    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    return_value="TestSheet",
+)
+def test_parse_sheet_returns_no_rows(get_sheet_name):
+    loader = AbstractLoader("test inner file name")
+
+    sheet_index, data_rows = loader.parse_sheet(
+        os.path.join(RES_DIR, "parse_sheet_no_rows_sample.xlsx")
+    )
+
+    assert sheet_index == 0
+    assert data_rows == []
+    get_sheet_name.assert_called_once()
