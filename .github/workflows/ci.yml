@@ -44,10 +44,53 @@ jobs:
       - name: Validate autoformat and types
         run: pants lint check src/ test/
 
+      - name: Verify Docker access for Spark Connect test containers
+        shell: bash
+        run: |
+          docker version
+          docker info
+
+      - name: Build Spark Connect test image
+        shell: bash
+        run: docker build -t spark-connect-test:4.1.0 docker/spark-connect/
+
+      - name: Prepare Spark Connect ivy cache dir
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cache/spark-ivy"
+          chmod -R 0777 "$HOME/.cache/spark-ivy"
+          echo "SPARK_IVY_CACHE_DIR=$HOME/.cache/spark-ivy" >> "$GITHUB_ENV"
+
+      - name: Start Spark Connect server
+        shell: bash
+        run: |
+          docker run -d \
+            --name spark-connect-test \
+            --user 0:0 \
+            -p 15002:15002 \
+            -v /tmp:/tmp:rw \
+            -v "$SPARK_IVY_CACHE_DIR:/opt/spark/work-dir/ivy:rw" \
+            spark-connect-test:4.1.0 \
+            /opt/spark/sbin/start-connect-server.sh \
+              --wait \
+              --packages org.apache.spark:spark-connect_2.13:4.1.0,io.delta:delta-spark_4.1_2.13:4.3.1 \
+              --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
+              --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
+              --conf spark.sql.sources.default=delta \
+              --conf spark.jars.ivy=/opt/spark/work-dir/ivy
+
+          timeout 600 bash -c \
+            'until docker logs spark-connect-test 2>&1 | grep -q "Spark Connect server started at:"; do sleep 2; done'
+
       - name: Run Tests
         run: |
           rm -rf dist/test/reports
           pants test --output=all --test-force --use-coverage --report test/::
+
+      - name: Stop Spark Connect server
+        if: always()
+        shell: bash
+        run: docker rm -f spark-connect-test
 
       - name: Enforce minimum test count
         run: |

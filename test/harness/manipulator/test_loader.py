@@ -10,12 +10,14 @@ RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 @mock.patch(
     "src.harness.manipulator.loader.convert_to_key", return_value="test converted key"
 )
-def test_insert_kvp_rows_success(convert_to_key, migrated_test_spark):
+def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
     loader = AbstractLoader("test inner file name")
     loader.insert_kvp_rows(
-        migrated_test_spark,
+        spark,
         cat="spark_catalog",
-        schema="default",
+        schema=schema,
         load_id="test_load_id",
         zip_name="test zip name",
         unzipped_name="test unzipped",
@@ -23,9 +25,7 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_test_spark):
         sheet_index=0,
         data_rows=[{"test_key": "test_val"}],
     )
-    sql_result = migrated_test_spark.sql(
-        "select * from spark_catalog.default.open_cms_data_kvp;"
-    )
+    sql_result = spark.sql(f"select * from spark_catalog.{schema}.open_cms_data_kvp;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
     assert results[0]["load_id"] == "test_load_id"

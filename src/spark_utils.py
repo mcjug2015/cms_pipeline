@@ -21,6 +21,14 @@ def get_spark(use_dbc=False):
         os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"
         return DatabricksSession.builder.getOrCreate()
 
+    spark_remote = os.environ.get("SPARK_REMOTE")
+    if spark_remote:
+        # No .config(...) here: under Spark Connect, session-construction-time
+        # config (extensions, catalog, packages) isn't settable from the
+        # client, only baked into the server's session at startup - see the
+        # container command in test/conftest.py.
+        return SparkSession.builder.remote(spark_remote).getOrCreate()
+
     warehouse_dir = os.environ.get(
         "SPARK_WAREHOUSE_DIR",
         os.path.join(os.path.dirname(__file__), "..", "spark-warehouse"),
