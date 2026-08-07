@@ -5,6 +5,7 @@ import string
 
 import pytest  # type: ignore
 
+from src import custom_logging
 from src.crutch_migrations.run_crutch_migrations import (
     get_ascending_letters_within_minute,
     get_output_folder,
@@ -12,15 +13,33 @@ from src.crutch_migrations.run_crutch_migrations import (
 )
 from src.spark_utils import get_spark
 
-SPARK_CONNECT_PORT = 15002
+logger = custom_logging.setup_logging().getLogger(__name__)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_spark_storage(tmp_path_factory):
+    if os.environ.get("WHICH_SPARK", "local") == "local":
+        logger.info(
+            f"WHICH_SPARK is local with value {os.environ.get('WHICH_SPARK', 'local')}; setting warehouse and"
+            " metastore env vars"
+        )
+        base = tmp_path_factory.mktemp("spark_store")
+        os.environ["SPARK_WAREHOUSE_DIR"] = str(base / "warehouse")
+        os.environ["SPARK_METASTORE_DIR"] = str(base / "metastore_db")
+    yield
 
 
 @pytest.fixture(scope="session")
 def _spark_connect_remote():
     """Point SPARK_REMOTE at the Spark Connect server on SPARK_CONNECT_PORT.
     Assumes it's already running (started separately, outside of pytest)."""
-    host = os.environ.get("SPARK_CONNECT_HOST", "localhost")
-    os.environ["SPARK_REMOTE"] = f"sc://{host}:{SPARK_CONNECT_PORT}"
+    if os.environ.get("WHICH_SPARK", "local") == "remote":
+        logger.info(
+            f"WHICH_SPARK is remote with value {os.environ.get('WHICH_SPARK', 'local')}; setting spark remote"
+        )
+        host = os.environ.get("SPARK_CONNECT_HOST", "localhost")
+        port = os.environ.get("SPARK_CONNECT_PORT", 15002)
+        os.environ["SPARK_REMOTE"] = f"sc://{host}:{port}"
     yield
 
 
@@ -45,8 +64,17 @@ def _migrate_schema(spark, schema):
 
 @pytest.fixture(scope="session")
 def migrated_spark(test_spark):
-    schema_name = f"b_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
-    schema_name += f"_{get_ascending_letters_within_minute()}"
-    schema_name += f"_{''.join(random.choices(string.ascii_letters, k=6))}"
+    if os.environ.get("WHICH_SPARK", "local") == "remote":
+        schema_name = f"b_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
+        schema_name += f"_{get_ascending_letters_within_minute()}"
+        schema_name += f"_{''.join(random.choices(string.ascii_letters, k=6))}"
+        logger.info(
+            f"WHICH_SPARK is remote w. value {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
+        )
+    else:
+        logger.info(
+            f"WHICH_SPARK is local with value {os.environ.get('WHICH_SPARK', 'local')}; using default schema name"
+        )
+        schema_name = "default"
     _migrate_schema(test_spark, schema_name)
     yield (test_spark, schema_name)

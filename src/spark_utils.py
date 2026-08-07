@@ -23,10 +23,6 @@ def get_spark(use_dbc=False):
 
     spark_remote = os.environ.get("SPARK_REMOTE")
     if spark_remote:
-        # No .config(...) here: under Spark Connect, session-construction-time
-        # config (extensions, catalog, packages) isn't settable from the
-        # client, only baked into the server's session at startup - see the
-        # container command in test/conftest.py.
         return SparkSession.builder.remote(spark_remote).getOrCreate()
 
     warehouse_dir = os.environ.get(

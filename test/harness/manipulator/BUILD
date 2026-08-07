@@ -3,6 +3,9 @@ python_tests(
     dependencies=["src:lib_test", ":unwrapper_res", ":loader_res"],
     resolve="py-reqs-dev",
     batch_compatibility_tag="shared_spark",
+    overrides={
+        "test_unwrapper.py": {"batch_compatibility_tag": None},
+    },
 )
 
 resources(

@@ -67,7 +67,7 @@ jobs:
           docker run -d \
             --name spark-connect-test \
             --user 0:0 \
-            -p 15002:15002 \
+            -p 15002 \
             -v /tmp:/tmp:rw \
             -v "$SPARK_IVY_CACHE_DIR:/opt/spark/work-dir/ivy:rw" \
             spark-connect-test:4.1.0 \
@@ -81,6 +81,10 @@ jobs:
 
           timeout 600 bash -c \
             'until docker logs spark-connect-test 2>&1 | grep -q "Spark Connect server started at:"; do sleep 2; done'
+
+          spark_connect_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "15002/tcp") 0).HostPort}}' spark-connect-test)"
+          echo "WHICH_SPARK=remote" >> "$GITHUB_ENV"
+          echo "SPARK_CONNECT_PORT=$spark_connect_port" >> "$GITHUB_ENV"
 
       - name: Run Tests
         run: |
