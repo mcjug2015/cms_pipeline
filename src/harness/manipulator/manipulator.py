@@ -293,7 +293,7 @@ def main(*args, **kwargs):
     logger.info("main manipulator end")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     shutil.rmtree(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "spark-warehouse"),
         ignore_errors=True,

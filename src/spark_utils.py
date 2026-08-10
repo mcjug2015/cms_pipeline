@@ -9,7 +9,7 @@ def is_dbr():
         from pyspark.dbutils import DBUtils  # type: ignore # noqa: F401
 
         # This will only succeed if the Databricks environment is available
-        return True
+        return True  # pragma: no cover
     except Exception:
         return False
 
@@ -20,6 +20,10 @@ def get_spark(use_dbc=False):
 
         os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"
         return DatabricksSession.builder.getOrCreate()
+
+    spark_remote = os.environ.get("SPARK_REMOTE")
+    if spark_remote:
+        return SparkSession.builder.remote(spark_remote).getOrCreate()
 
     warehouse_dir = os.environ.get(
         "SPARK_WAREHOUSE_DIR",

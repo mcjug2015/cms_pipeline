@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
 
 from openpyxl import load_workbook
-from pyspark.sql import SparkSession
+from pyspark.sql import Row, SparkSession
+from pyspark.sql.functions import current_timestamp
 
 from src import custom_logging
 from src.crutch_migrations.run_crutch_migrations import (
@@ -46,7 +47,7 @@ class AbstractLoader(ABC, Unwrapper):
         col_index_to_header_col_name = {}
         for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
             cells = [c for c in row if c is not None and str(c).strip() != ""]
-            if cells[0] == self.get_first_header_cell_val():
+            if cells and cells[0] == self.get_first_header_cell_val():
                 for idx, header_cell in enumerate(cells):
                     col_index_to_header_col_name[idx] = header_cell
                 break
@@ -78,27 +79,32 @@ class AbstractLoader(ABC, Unwrapper):
         sheet_name: str,
         sheet_index: int,
         data_rows: List[Dict[str, str]],
-    ) -> None:
+    ) -> int:
         if not data_rows:
-            return
-        val_strs = []
+            return 0
+        rows = []
         for data_row in data_rows:
             for the_key, the_val in data_row.items():
                 table_key_simple = convert_to_key(the_key)
-                # literal strs since args don't work with local spark used for testing.
-                val_strs.append(
-                    f"('{load_id}', '{zip_name}', '{unzipped_name}', '{sheet_name}', {sheet_index}"
-                    f", '{the_key}', '{table_key_simple}'"
-                    f", '{the_val}', current_timestamp(), current_timestamp())"
+                rows.append(
+                    Row(
+                        load_id=load_id,
+                        zip_name=zip_name,
+                        unzipped_name=unzipped_name,
+                        sheet_name=sheet_name,
+                        sheet_index=sheet_index,
+                        table_key=the_key,
+                        table_key_simple=table_key_simple,
+                        table_val=the_val,
+                    )
                 )
-        spark.sql(
-            f"""
-            insert into {cat}.{schema}.open_cms_data_kvp
-            (load_id, zip_name, unzipped_name, sheet_name, sheet_index, table_key, table_key_simple
-             , table_val, created_at, updated_at)
-            values {", ".join(val_strs)}
-            """
+        df = (
+            spark.createDataFrame(rows)
+            .withColumn("created_at", current_timestamp())
+            .withColumn("updated_at", current_timestamp())
         )
+        df.writeTo(f"{cat}.{schema}.open_cms_data_kvp").append()
+        return len(rows)
 
     def load(self, spark: SparkSession, cat: str, schema: str) -> Dict[str, int]:
         with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
@@ -129,20 +135,20 @@ class AbstractLoader(ABC, Unwrapper):
 
 class TotOrigMeMaOhpEnroll(AbstractLoader):
 
-    def __init__(self):
+    def __init__(self):  # pragma: no cover
         super().__init__("MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx")
 
-    def get_sheet_name(self):
+    def get_sheet_name(self):  # pragma: no cover
         return "MDCR ENROLL AB 1_CPS_02ENR"
 
-    def get_first_header_cell_val(self):
+    def get_first_header_cell_val(self):  # pragma: no cover
         return "Year"
 
-    def get_s3_zip_uri(self):
-        return "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip"  # noqa E501
+    def get_s3_zip_uri(self):  # pragma: no cover
+        return "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment ALL.zip"  # noqa E501
 
 
-def main(*args, **kwargs):
+def main(*args, **kwargs):  # pragma: no cover
     logger.info("loader main begins")
     cat = kwargs.get("cat", None)
     schema = kwargs.get("schema", None)
@@ -161,7 +167,7 @@ def main(*args, **kwargs):
     logger.info(f"loader main end {results}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(description="loader params")
     parser.add_argument(
         "--cat",

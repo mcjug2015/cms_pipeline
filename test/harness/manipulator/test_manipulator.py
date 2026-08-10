@@ -1,5 +1,7 @@
 from unittest import mock
 
+import pytest
+
 from src import custom_logging
 from src.harness.manipulator import manipulator
 from src.harness.manipulator.manipulator import (
@@ -16,12 +18,17 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 
 
 @mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
-def test_abstract_benchmark_save_metric(migrated_test_spark):
+def test_abstract_benchmark_save_metric(migrated_spark):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
     bmrk = AbstractBenchmark(
-        migrated_test_spark, cat="spark_catalog", schema="default", the_batch_id="7"
+        spark,
+        cat="spark_catalog",
+        schema=schema,
+        the_batch_id="7",
     )
     bmrk.save_metric({"testing": "testing"})
-    sql_result = migrated_test_spark.sql("select * from spark_catalog.default.metrics;")
+    sql_result = spark.sql(f"select * from spark_catalog.{schema}.metrics;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
     assert results[0]["metric_name"] == "AbstractBenchmark"
@@ -37,12 +44,17 @@ def test_abstract_benchmark_execute(benchmark, save_metric):
     save_metric.assert_called_once()
 
 
-def test_single_row_insert(migrated_test_spark):
+def test_single_row_insert(migrated_spark):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
     SingleRowInsert(
-        migrated_test_spark, cat="spark_catalog", schema="default", the_batch_id="7"
+        spark,
+        cat="spark_catalog",
+        schema=schema,
+        the_batch_id="7",
     ).benchmark()
-    sql_result = migrated_test_spark.sql(
-        "select * from spark_catalog.default.test_table order by int_id desc;"
+    sql_result = spark.sql(
+        f"select * from spark_catalog.{schema}.test_table order by int_id desc;"
     )
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
@@ -132,3 +144,13 @@ def test_main_calls_execute_on_benchmarks(
     ):
         benchmark_class.return_value.execute.assert_called_once()
     mock_get_spark.assert_called_once()
+
+
+@mock.patch(
+    "src.harness.manipulator.manipulator.sys.argv",
+    ["manipulator.py", "", "argv_schema"],
+)
+def test_main_raises_when_no_cat_or_schema():
+    """main() should raise if neither kwargs nor sys.argv supply both cat and schema."""
+    with pytest.raises(ValueError, match="Expecting both cat and schema"):
+        manipulator.main()
