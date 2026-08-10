@@ -145,7 +145,7 @@ class TotOrigMeMaOhpEnroll(AbstractLoader):
         return "Year"
 
     def get_s3_zip_uri(self):  # pragma: no cover
-        return "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip"  # noqa E501
+        return "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment ALL.zip"  # noqa E501
 
 
 def main(*args, **kwargs):  # pragma: no cover
