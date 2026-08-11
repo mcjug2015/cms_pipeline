@@ -40,9 +40,13 @@ Layout:
 
 
 ## Laws of integration testing
+- Integration tests live under `test/integration/`, mirroring the `src/` package path below
+  that, same as unit tests do under `test/`.
 - Integration tests should not contribute to coverage, that should only come from unit tests.
 - Integration tests should test individual tasks the src/ code might be expected to perform.
 - Integration tests are free to mock or patch if using real src/ code would detract from focus.
+- Integration tests always run after unit tests, as a separate `pants test` invocation, never
+  in parallel with them or with each other's invocation — see the quality gates below.
 
 
 ## The quality gates — run these before calling anything done
@@ -54,8 +58,12 @@ Pants assembles; bare `pytest` fails with Delta classpath errors).
 # Format + lint + typecheck (black, isort, flake8, mypy) — must be clean
 pants fmt lint check src/ test/
 
-# Run the full test suite with coverage
-pants test --test-force --use-coverage test/::
+# Run unit tests with coverage (everything under test/ except test/integration)
+pants test --test-force --use-coverage test/:: -test/integration::
+
+# Then, only after unit tests are green, run integration tests as their own
+# invocation — never combined or fanned out alongside the unit run
+pants test --test-force test/integration::
 
 # Scope to one file/selector while iterating
 pants test --test-force test/harness/manipulator/test_manipulator.py
@@ -67,12 +75,17 @@ pants package src/
 
 Non-negotiable gates (from `ci.yml`):
 1. `pants lint check src/ test/` is clean — this is `black`, `isort`, `flake8`, `mypy`.
-2. All tests pass via `pants test test/::`.
+2. All tests pass. Unit tests (`test/::` minus `test/integration::`) run first, with
+   coverage; integration tests run afterward, as a separate `pants test` invocation, never
+   in parallel with the unit run — see `ci.yml`'s "Run unit tests" / "Run integration tests"
+   steps.
 3. Branch coverage over `src/` stays **≥ 85%** (`fail_under = 85` under `[coverage-py]` in
    `pants.toml`). It belongs there, not in `pyproject.toml`: coverage.py's own `fail_under`
    is applied to each test partition separately, so a single test file gets failed for not
    covering the rest of `src/` on its own.
    New code needs tests; don't lower the threshold to make a change pass.
+   Integration tests must not be run with `--use-coverage`; per the laws below, coverage
+   should come only from unit tests.
 
 If you can't run these, say so explicitly rather than claiming the change is verified.
 
@@ -135,6 +148,7 @@ If you can't run these, say so explicitly rather than claiming the change is ver
 ## Before you finish a change
 
 1. `pants fmt lint check src/ test/` — clean.
-2. `pants test --test-force --use-coverage test/::` — green, coverage ≥ 85%.
-3. New/changed behaviour has tests; migrations are idempotent (run-twice safe).
-4. Nothing hardcodes environment-specific paths, credentials, warehouse ids, or catalogs.
+2. `pants test --test-force --use-coverage test/:: -test/integration::` — green, coverage ≥ 85%.
+3. `pants test --test-force test/integration::` — green, run only after step 2 passes.
+4. New/changed behaviour has tests; migrations are idempotent (run-twice safe).
+5. Nothing hardcodes environment-specific paths, credentials, warehouse ids, or catalogs.

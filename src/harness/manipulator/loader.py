@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import re
 import sys
 import tempfile
 import uuid
@@ -36,6 +37,16 @@ class AbstractLoader(ABC, Unwrapper):
     def get_s3_zip_uri(self):
         pass
 
+    def get_non_empty_cells(self, row):
+        return [c for c in row if c is not None and str(c).strip() != ""]
+
+    def is_only_text_cell(self, non_empty_cells) -> bool:
+        if len(non_empty_cells) == 1 and bool(
+            re.search(r"[A-Za-z]", non_empty_cells[0])
+        ):
+            return True
+        return False
+
     def parse_sheet(
         self,
         xlsx_path: str,
@@ -46,7 +57,7 @@ class AbstractLoader(ABC, Unwrapper):
         data_rows: List[Dict[str, Any]] = []
         col_index_to_header_col_name = {}
         for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
-            cells = [c for c in row if c is not None and str(c).strip() != ""]
+            cells = self.get_non_empty_cells(row)
             if cells and cells[0] == self.get_first_header_cell_val():
                 for idx, header_cell in enumerate(cells):
                     col_index_to_header_col_name[idx] = header_cell
@@ -55,11 +66,12 @@ class AbstractLoader(ABC, Unwrapper):
         for idx, row in enumerate(
             worksheet.iter_rows(min_row=header_row_idx + 2, values_only=True)
         ):
-            cells = [c for c in row if c is not None and str(c).strip() != ""]
+            cells = self.get_non_empty_cells(row)
             if (
                 len(cells) > 0
                 and len(str(cells[0]).strip()) > 0
                 and str(cells[0]).strip() != "BLANK"
+                and not self.is_only_text_cell(cells)
             ):
                 record = {}
                 for idx, value_cell in enumerate(cells):

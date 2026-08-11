@@ -87,6 +87,42 @@ def test_load_success(
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_get_non_empty_cells():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.get_non_empty_cells((None, "", "   ", 0, "Year", "  Year  "))
+
+    assert result == [0, "Year", "  Year  "]
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_multiple_cells_returns_false():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["FooterNote", "Metric"])
+
+    assert result is False
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_single_text_cell_returns_true():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["FooterNote"])
+
+    assert result is True
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_single_non_text_cell_returns_false():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["12345"])
+
+    assert result is False
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
     "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
     return_value="TestSheet",

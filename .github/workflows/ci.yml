@@ -86,10 +86,17 @@ jobs:
           echo "WHICH_SPARK=remote" >> "$GITHUB_ENV"
           echo "SPARK_CONNECT_PORT=$spark_connect_port" >> "$GITHUB_ENV"
 
-      - name: Run Tests
+      - name: Run unit tests
         run: |
           rm -rf dist/test/reports
-          pants test --output=all --test-force --use-coverage --report test/::
+          pants test --output=all --test-force --use-coverage --report test/:: -test/integration::
+
+      - name: Run integration tests
+        # Runs after unit tests complete, as its own pants invocation, never fanned out
+        # alongside them. Integration tests aren't covered by --use-coverage: coverage
+        # only comes from unit tests (see CLAUDE.md "Laws of integration testing").
+        run: |
+          pants test --output=all --test-force --report test/integration::
 
       - name: Stop Spark Connect server
         if: always()
