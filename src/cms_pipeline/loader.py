@@ -95,7 +95,7 @@ class AbstractLoader(ABC, Unwrapper):
         if not data_rows:
             return 0
         rows = []
-        for data_row in data_rows:
+        for idx, data_row in enumerate(data_rows):
             for the_key, the_val in data_row.items():
                 table_key_simple = convert_to_key(the_key)
                 rows.append(
@@ -107,6 +107,7 @@ class AbstractLoader(ABC, Unwrapper):
                         sheet_index=sheet_index,
                         table_key=the_key,
                         table_key_simple=table_key_simple,
+                        table_row_index=idx,
                         table_val=the_val,
                     )
                 )
