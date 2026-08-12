@@ -15,3 +15,5 @@
 /hahaha.md
 /.hahaha_last_uuid
 /total_enroll/
+__pycache__/
+*.pyc

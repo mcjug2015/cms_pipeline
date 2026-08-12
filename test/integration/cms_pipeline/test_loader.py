@@ -1,13 +1,13 @@
 import os
 from unittest import mock
 
-from src.harness.manipulator.loader import TotOrigMeMaOhpEnroll
+from src.cms_pipeline.loader import TotOrigMeMaOhpEnroll
 
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
 @mock.patch(
-    "src.harness.manipulator.loader.download_s3_zip",
+    "src.cms_pipeline.loader.download_s3_zip",
     return_value=os.path.join(RES_DIR, "nested_total_enroll.zip"),
 )
 def test_load_total_enroll_inserts_year_rows_from_nested_zip(download_s3_zip, migrated_spark):

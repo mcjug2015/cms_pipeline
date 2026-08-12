@@ -1,14 +1,14 @@
 import os
 from unittest import mock
 
-from src.harness.manipulator.loader import AbstractLoader
+from src.cms_pipeline.loader import AbstractLoader
 
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.convert_to_key", return_value="test converted key"
+    "src.cms_pipeline.loader.convert_to_key", return_value="test converted key"
 )
 def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
     spark = migrated_spark[0]
@@ -54,20 +54,20 @@ def test_insert_kvp_rows_no_rows():
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.download_s3_zip", return_value="/i/am/not/real"
+    "src.cms_pipeline.loader.download_s3_zip", return_value="/i/am/not/real"
 )
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_s3_zip_uri",
+    "src.cms_pipeline.loader.AbstractLoader.get_s3_zip_uri",
     return_value="test_fake_s3_uri",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.Unwrapper.unwrap",
+    "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.parse_sheet",
+    "src.cms_pipeline.loader.AbstractLoader.parse_sheet",
     return_value=(77, [{"i am a fake": "data row"}]),
 )
-@mock.patch("src.harness.manipulator.loader.AbstractLoader.insert_kvp_rows")
+@mock.patch("src.cms_pipeline.loader.AbstractLoader.insert_kvp_rows")
 def test_load_success(
     insert_kvp_rows, parse_sheet, unwrap, get_s3_zip_uri, download_s3_zip
 ):
@@ -124,11 +124,11 @@ def test_is_only_text_cell_single_non_text_cell_returns_false():
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
     return_value="TestSheet",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_first_header_cell_val",
+    "src.cms_pipeline.loader.AbstractLoader.get_first_header_cell_val",
     return_value="Year",
 )
 def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name):
@@ -150,7 +150,7 @@ def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
     return_value="TestSheet",
 )
 def test_parse_sheet_returns_no_rows(get_sheet_name):

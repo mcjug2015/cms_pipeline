@@ -3,13 +3,13 @@ from unittest import mock
 
 import pytest  # type: ignore
 
-from src.harness.manipulator.unwrapper import Unwrapper
+from src.cms_pipeline.unwrapper import Unwrapper
 
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
 @mock.patch(
-    "src.harness.manipulator.unwrapper.Unwrapper._find_target", return_value="test123"
+    "src.cms_pipeline.unwrapper.Unwrapper._find_target", return_value="test123"
 )
 def test_unwrap_success(find_target):
     unwrapper = Unwrapper(None)
@@ -20,7 +20,7 @@ def test_unwrap_success(find_target):
 
 
 @mock.patch(
-    "src.harness.manipulator.unwrapper.Unwrapper._find_target",
+    "src.cms_pipeline.unwrapper.Unwrapper._find_target",
 )
 def test_unwrap_except(find_target):
     find_target.side_effect = ValueError("test error 123")

@@ -14,7 +14,7 @@ Layout:
 - `src/` — library code (resolve `python-default`).
   - `src/spark_utils.py` — `get_spark()` / `is_dbr()`: the single entry point for a Spark session.
   - `src/custom_logging.py` — logging config; use it, don't `print`.
-  - `src/harness/manipulator/` — the manipulator job + unwrapper.
+  - `src/cms_pipeline/` — the manipulator job + unwrapper.
   - `src/crutch_migrations/` — SQL migration runner and `migrations/` files.
 - `test/` — tests (resolve `py-reqs-dev`).
 - `dab/` — Databricks Asset Bundle (`databricks.yml`, `resources/`).
@@ -66,8 +66,8 @@ pants test --test-force --use-coverage test/:: -test/integration::
 pants test --test-force test/integration::
 
 # Scope to one file/selector while iterating
-pants test --test-force test/harness/manipulator/test_manipulator.py
-pants test --test-force test/harness/manipulator/test_manipulator.py -- -k <expr>
+pants test --test-force test/cms_pipeline/test_manipulator.py
+pants test --test-force test/cms_pipeline/test_manipulator.py -- -k <expr>
 
 # Build the wheel (CI does this; do it if you touched packaging)
 pants package src/

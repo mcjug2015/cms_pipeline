@@ -1,4 +1,4 @@
-from src.harness.manipulator import manipulator
+from src.cms_pipeline import manipulator
 
 
 def test_main_runs_all_benchmarks_and_saves_metrics(migrated_spark):

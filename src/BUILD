@@ -17,19 +17,19 @@ python_sources(
 python_distribution(
     name="dist",
     dependencies=[
-        "src/harness/manipulator/manipulator.py:lib",
-        "src/harness/manipulator/loader.py:lib",
+        "src/cms_pipeline/manipulator.py:lib",
+        "src/cms_pipeline/loader.py:lib",
     ],
     wheel=True,
     provides=setup_py(
-        name="src.harness.manipulator.manipulator",
+        name="src.cms_pipeline.manipulator",
         version="0.0.1",
         description="manipulates and profiles various sorts of spark",
     ),
     entry_points={
         "console_scripts": {
-            "run_manipulator": "src.harness.manipulator.manipulator:main",
-            "run_scratchpad": "src.harness.manipulator.loader:main",
+            "run_manipulator": "src.cms_pipeline.manipulator:main",
+            "run_scratchpad": "src.cms_pipeline.loader:main",
         }
     },
 )
