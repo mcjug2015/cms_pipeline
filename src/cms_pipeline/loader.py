@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import re
 import sys
 import tempfile
 import uuid
@@ -12,10 +13,10 @@ from pyspark.sql import Row, SparkSession
 from pyspark.sql.functions import current_timestamp
 
 from src import custom_logging
+from src.cms_pipeline.unwrapper import Unwrapper
 from src.crutch_migrations.run_crutch_migrations import (
     get_ascending_letters_within_minute,
 )
-from src.harness.manipulator.unwrapper import Unwrapper
 from src.spark_utils import get_spark
 from src.utils import convert_to_key, download_s3_zip
 
@@ -36,6 +37,16 @@ class AbstractLoader(ABC, Unwrapper):
     def get_s3_zip_uri(self):
         pass
 
+    def get_non_empty_cells(self, row):
+        return [c for c in row if c is not None and str(c).strip() != ""]
+
+    def is_only_text_cell(self, non_empty_cells) -> bool:
+        if len(non_empty_cells) == 1 and bool(
+            re.search(r"[A-Za-z]", non_empty_cells[0])
+        ):
+            return True
+        return False
+
     def parse_sheet(
         self,
         xlsx_path: str,
@@ -46,7 +57,7 @@ class AbstractLoader(ABC, Unwrapper):
         data_rows: List[Dict[str, Any]] = []
         col_index_to_header_col_name = {}
         for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
-            cells = [c for c in row if c is not None and str(c).strip() != ""]
+            cells = self.get_non_empty_cells(row)
             if cells and cells[0] == self.get_first_header_cell_val():
                 for idx, header_cell in enumerate(cells):
                     col_index_to_header_col_name[idx] = header_cell
@@ -55,11 +66,12 @@ class AbstractLoader(ABC, Unwrapper):
         for idx, row in enumerate(
             worksheet.iter_rows(min_row=header_row_idx + 2, values_only=True)
         ):
-            cells = [c for c in row if c is not None and str(c).strip() != ""]
+            cells = self.get_non_empty_cells(row)
             if (
                 len(cells) > 0
                 and len(str(cells[0]).strip()) > 0
                 and str(cells[0]).strip() != "BLANK"
+                and not self.is_only_text_cell(cells)
             ):
                 record = {}
                 for idx, value_cell in enumerate(cells):
@@ -83,7 +95,7 @@ class AbstractLoader(ABC, Unwrapper):
         if not data_rows:
             return 0
         rows = []
-        for data_row in data_rows:
+        for idx, data_row in enumerate(data_rows):
             for the_key, the_val in data_row.items():
                 table_key_simple = convert_to_key(the_key)
                 rows.append(
@@ -95,6 +107,7 @@ class AbstractLoader(ABC, Unwrapper):
                         sheet_index=sheet_index,
                         table_key=the_key,
                         table_key_simple=table_key_simple,
+                        table_row_index=idx,
                         table_val=the_val,
                     )
                 )

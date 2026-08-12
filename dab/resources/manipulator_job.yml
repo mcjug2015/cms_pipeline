@@ -5,7 +5,7 @@ resources:
       tasks:
         - task_key: testing_whl_task
           python_wheel_task:
-            package_name: src.harness.manipulator.manipulator
+            package_name: src.cms_pipeline.manipulator
             entry_point: run_manipulator
             parameters:
               - ${var.catalog}
@@ -18,7 +18,7 @@ resources:
           spec:
             environment_version: "5"
             dependencies:
-              - ../../dist/src_harness_manipulator_manipulator-0.0.1-py3-none-any.whl
+              - ../../dist/src_cms_pipeline_manipulator-0.0.1-py3-none-any.whl
       performance_target: PERFORMANCE_OPTIMIZED
       permissions:
         - group_name: users_and_sps

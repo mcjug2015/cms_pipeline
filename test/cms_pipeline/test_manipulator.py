@@ -3,8 +3,8 @@ from unittest import mock
 import pytest
 
 from src import custom_logging
-from src.harness.manipulator import manipulator
-from src.harness.manipulator.manipulator import (
+from src.cms_pipeline import manipulator
+from src.cms_pipeline.manipulator import (
     AbstractBenchmark,
     ClusterRoundtripLatency,
     CollectBandwidth,
@@ -35,8 +35,8 @@ def test_abstract_benchmark_save_metric(migrated_spark):
 
 
 @mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
-@mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.save_metric")
-@mock.patch("src.harness.manipulator.manipulator.AbstractBenchmark.benchmark")
+@mock.patch("src.cms_pipeline.manipulator.AbstractBenchmark.save_metric")
+@mock.patch("src.cms_pipeline.manipulator.AbstractBenchmark.benchmark")
 def test_abstract_benchmark_execute(benchmark, save_metric):
     bmrk = AbstractBenchmark(None, cat=None, schema=None, the_batch_id=None)
     bmrk.execute()
@@ -115,13 +115,13 @@ def test_python_udf_overhead(test_spark):
 
 
 # Decorators apply bottom-up, so the mocks arrive as arguments in the reverse
-@mock.patch("src.harness.manipulator.manipulator.get_spark")
-@mock.patch("src.harness.manipulator.manipulator.SingleRowInsert")
-@mock.patch("src.harness.manipulator.manipulator.ClusterRoundtripLatency")
-@mock.patch("src.harness.manipulator.manipulator.RangeAggregation")
-@mock.patch("src.harness.manipulator.manipulator.ShuffleGroupBy")
-@mock.patch("src.harness.manipulator.manipulator.CollectBandwidth")
-@mock.patch("src.harness.manipulator.manipulator.PythonUdfOverhead")
+@mock.patch("src.cms_pipeline.manipulator.get_spark")
+@mock.patch("src.cms_pipeline.manipulator.SingleRowInsert")
+@mock.patch("src.cms_pipeline.manipulator.ClusterRoundtripLatency")
+@mock.patch("src.cms_pipeline.manipulator.RangeAggregation")
+@mock.patch("src.cms_pipeline.manipulator.ShuffleGroupBy")
+@mock.patch("src.cms_pipeline.manipulator.CollectBandwidth")
+@mock.patch("src.cms_pipeline.manipulator.PythonUdfOverhead")
 def test_main_calls_execute_on_benchmarks(
     mock_python_udf_overhead,
     mock_collect_bandwidth,
@@ -147,7 +147,7 @@ def test_main_calls_execute_on_benchmarks(
 
 
 @mock.patch(
-    "src.harness.manipulator.manipulator.sys.argv",
+    "src.cms_pipeline.manipulator.sys.argv",
     ["manipulator.py", "", "argv_schema"],
 )
 def test_main_raises_when_no_cat_or_schema():

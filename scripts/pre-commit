@@ -4,8 +4,11 @@
 #
 # Runs the same steps as CI, in the same order:
 #   make-lock    -> pants generate-lockfiles
-#   verify       -> pants lint check ::  &&  pants test ::
+#   verify       -> pants lint check ::  &&  pants test unit ::  &&  pants test integration ::
 #   generate-whl -> pants package ::
+#
+# Integration tests always run after unit tests, as their own pants invocation — never
+# combined with or in parallel with the unit run (see CLAUDE.md "Laws of integration testing").
 #
 # Abort the commit if any step fails.
 #
@@ -22,5 +25,12 @@ cd "$(git rev-parse --show-toplevel)"
 echo "==> [verify] Validating autoformat and types"
 pants lint check src/ test/
 
-echo "==> [verify] Running tests"
-pants test --output=all test/
+# Share a running spark-connect-test container across both test runs below, same as
+# validate.sh does, instead of each falling back to its own local embedded Spark.
+source scripts/detect_spark_connect.sh
+
+echo "==> [verify] Running unit tests"
+pants test --output=all test/:: -test/integration::
+
+echo "==> [verify] Running integration tests"
+pants test --output=all test/integration::

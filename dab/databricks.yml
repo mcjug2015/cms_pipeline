@@ -1,6 +1,6 @@
-# Databricks Asset Bundle for the harness "manipulator" python-wheel job.
+# Databricks Asset Bundle for the cms_pipeline "manipulator" python-wheel job.
 bundle:
-  name: harness_manipulator
+  name: cms_pipeline_manipulator
 
 # Pull in every job/pipeline definition under resources/.
 include:
@@ -24,7 +24,7 @@ artifacts:
     type: whl
     build: pants package ../src
     files:
-      - source: ../dist/src_harness_manipulator_manipulator-0.0.1-py3-none-any.whl
+      - source: ../dist/src_cms_pipeline_manipulator-0.0.1-py3-none-any.whl
 
 targets:
   dev:

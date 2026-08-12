@@ -1,15 +1,13 @@
 import os
 from unittest import mock
 
-from src.harness.manipulator.loader import AbstractLoader
+from src.cms_pipeline.loader import AbstractLoader
 
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
-@mock.patch(
-    "src.harness.manipulator.loader.convert_to_key", return_value="test converted key"
-)
+@mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
 def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
@@ -31,6 +29,7 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
     assert results[0]["load_id"] == "test_load_id"
     assert results[0]["table_key"] == "test_key"
     assert results[0]["table_key_simple"] == "test converted key"
+    assert results[0]["table_row_index"] == 0
     assert results[0]["table_val"] == "test_val"
     convert_to_key.assert_called_once()
 
@@ -53,21 +52,19 @@ def test_insert_kvp_rows_no_rows():
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+@mock.patch("src.cms_pipeline.loader.download_s3_zip", return_value="/i/am/not/real")
 @mock.patch(
-    "src.harness.manipulator.loader.download_s3_zip", return_value="/i/am/not/real"
-)
-@mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_s3_zip_uri",
+    "src.cms_pipeline.loader.AbstractLoader.get_s3_zip_uri",
     return_value="test_fake_s3_uri",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.Unwrapper.unwrap",
+    "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.parse_sheet",
+    "src.cms_pipeline.loader.AbstractLoader.parse_sheet",
     return_value=(77, [{"i am a fake": "data row"}]),
 )
-@mock.patch("src.harness.manipulator.loader.AbstractLoader.insert_kvp_rows")
+@mock.patch("src.cms_pipeline.loader.AbstractLoader.insert_kvp_rows")
 def test_load_success(
     insert_kvp_rows, parse_sheet, unwrap, get_s3_zip_uri, download_s3_zip
 ):
@@ -87,12 +84,48 @@ def test_load_success(
 
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_get_non_empty_cells():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.get_non_empty_cells((None, "", "   ", 0, "Year", "  Year  "))
+
+    assert result == [0, "Year", "  Year  "]
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_multiple_cells_returns_false():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["FooterNote", "Metric"])
+
+    assert result is False
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_single_text_cell_returns_true():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["FooterNote"])
+
+    assert result is True
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
+def test_is_only_text_cell_single_non_text_cell_returns_false():
+    loader = AbstractLoader("test inner file name")
+
+    result = loader.is_only_text_cell(["12345"])
+
+    assert result is False
+
+
+@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
     return_value="TestSheet",
 )
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_first_header_cell_val",
+    "src.cms_pipeline.loader.AbstractLoader.get_first_header_cell_val",
     return_value="Year",
 )
 def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name):
@@ -114,7 +147,7 @@ def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name
 
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch(
-    "src.harness.manipulator.loader.AbstractLoader.get_sheet_name",
+    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
     return_value="TestSheet",
 )
 def test_parse_sheet_returns_no_rows(get_sheet_name):
