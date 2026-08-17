@@ -58,6 +58,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$HOME/.cache/spark-ivy"
+          docker run --rm -v "$HOME/.cache/spark-ivy:/ivy:rw" busybox \
+            chown -R "$(id -u):$(id -g)" /ivy
           chmod -R 0777 "$HOME/.cache/spark-ivy"
           echo "SPARK_IVY_CACHE_DIR=$HOME/.cache/spark-ivy" >> "$GITHUB_ENV"
 
