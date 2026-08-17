@@ -18,10 +18,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@main
 
-      - name: Setup Python
-        uses: actions/setup-python@main
-        with:
-          python-version: '3.12.3' # Use the python version required by your repo
+      # No actions/setup-python step: this self-hosted runner already has
+      # 3.12.3 installed via pyenv, and pants.toml's [python-bootstrap]
+      # search_path includes "<PYENV>", so Pants finds it directly. (GitHub's
+      # hosted-tool manifest has no prebuilt 3.12.3 for this runner's OS anyway.)
 
       - name: Initialize Pants
         shell: bash
