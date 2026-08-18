@@ -9,6 +9,9 @@ RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
 def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
+    """
+    TODO XXX validate that the schema for these tests is different from the ones test_manipulator and others get
+    """
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     loader = AbstractLoader("test inner file name")

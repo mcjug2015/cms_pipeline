@@ -63,6 +63,9 @@ jobs:
           chmod -R 0777 "$HOME/.cache/spark-ivy"
           echo "SPARK_IVY_CACHE_DIR=$HOME/.cache/spark-ivy" >> "$GITHUB_ENV"
 
+          mkdir -p "$HOME/.cache/pytest-tmp"
+          echo "PYTEST_TMP_BASE=$HOME/.cache/pytest-tmp" >> "$GITHUB_ENV"
+
       - name: Start Spark Connect server
         shell: bash
         run: |
@@ -70,7 +73,7 @@ jobs:
             --name spark-connect-test \
             --user 0:0 \
             -p 15002 \
-            -v /tmp:/tmp:rw \
+            -v "$HOME/.cache/pytest-tmp:$HOME/.cache/pytest-tmp:rw" \
             -v "$SPARK_IVY_CACHE_DIR:/opt/spark/work-dir/ivy:rw" \
             spark-connect-test:4.1.0 \
             /opt/spark/sbin/start-connect-server.sh \
