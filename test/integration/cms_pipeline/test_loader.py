@@ -22,7 +22,9 @@ def test_load_total_enroll_inserts_year_rows_from_nested_zip(
     schema = migrated_spark[1]
     loader = TotOrigMeMaOhpEnroll()
 
-    result = loader.load(spark, cat="spark_catalog", schema=schema)
+    result = loader.load_zip(
+        spark, cat="spark_catalog", schema=schema, s3_zip_uri=loader.get_s3_zip_uri()
+    )
 
     assert result == {"data_rows": 6}
     sql_result = spark.sql(

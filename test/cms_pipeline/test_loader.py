@@ -57,10 +57,6 @@ def test_insert_kvp_rows_no_rows():
 @mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch("src.cms_pipeline.loader.download_s3_zip", return_value="/i/am/not/real")
 @mock.patch(
-    "src.cms_pipeline.loader.AbstractLoader.get_s3_zip_uri",
-    return_value="test_fake_s3_uri",
-)
-@mock.patch(
     "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
 @mock.patch(
@@ -68,21 +64,18 @@ def test_insert_kvp_rows_no_rows():
     return_value=(77, [{"i am a fake": "data row"}]),
 )
 @mock.patch("src.cms_pipeline.loader.AbstractLoader.insert_kvp_rows")
-def test_load_success(
-    insert_kvp_rows, parse_sheet, unwrap, get_s3_zip_uri, download_s3_zip
-):
+def test_load_success(insert_kvp_rows, parse_sheet, unwrap, download_s3_zip):
     parse_sheet.return_value = (3, [{"test_key": "test_val"}])
     spark = mock.MagicMock(name="spark")
     unwrap.return_value.__enter__.return_value = "/fake/xlsx"
 
     loader = AbstractLoader("test inner file name")
-    result = loader.load(spark, "test_cat", "test_schema")
+    result = loader.load_zip(spark, "test_cat", "test_schema", "test_fake_s3_uri")
 
     assert result["data_rows"] == 1
     insert_kvp_rows.assert_called_once()
     parse_sheet.assert_called_once()
     unwrap.assert_called_once()
-    get_s3_zip_uri.assert_called_once()
     download_s3_zip.assert_called_once()
 
 

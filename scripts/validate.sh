@@ -6,6 +6,9 @@ pants lint check src/ test/
 
 source "$(dirname "${BASH_SOURCE[0]}")/detect_spark_connect.sh"
 
+mkdir -p "$HOME/.cache/pytest-tmp"
+export PYTEST_TMP_BASE="$HOME/.cache/pytest-tmp"
+
 # Unit tests run first, with coverage. Integration tests run afterward, as their own
 # invocation, never in parallel with the unit run, and are excluded from --use-coverage —
 # coverage should come only from unit tests (see CLAUDE.md "Laws of integration testing").

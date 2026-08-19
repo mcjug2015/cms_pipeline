@@ -24,7 +24,7 @@ Layout:
 ## Laws of unit testing
 - The unit under test should always be a single python function or method from src/.
 - A unit test may not invoke its unit more than once.
-- A test may not invoke any part of src/ other than its unit.
+- With the exception of simple getters and setters a test may not invoke any part of src/ other than its unit.
 - Do not create abstract class implementations that only serve tests, use `__abstractmethods__=set()` instead.
 - Always mock/patch other methods from our source that are invoked from the unit under test.
 - Whenever mocking/patching is done, assert_called must verify that the expected call took place, or did not if that is what should have happenned.
