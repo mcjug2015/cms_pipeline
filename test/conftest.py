@@ -2,6 +2,7 @@ import datetime
 import os
 import random
 import string
+import tempfile
 
 import pytest  # type: ignore
 
@@ -14,6 +15,15 @@ from src.crutch_migrations.run_crutch_migrations import (
 from src.spark_utils import get_spark
 
 logger = custom_logging.setup_logging().getLogger(__name__)
+
+
+def pytest_configure(config):
+    # Pants overrides TMPDIR itself for every local test process (to keep temp
+    # files inside its own sandbox root), so extra_env_vars can't use it.
+    tmp_base = os.environ.get("PYTEST_TMP_BASE")
+    if tmp_base:
+        os.makedirs(tmp_base, exist_ok=True)
+        tempfile.tempdir = tmp_base
 
 
 @pytest.fixture(scope="session", autouse=True)

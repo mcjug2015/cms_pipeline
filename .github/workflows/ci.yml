@@ -18,10 +18,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@main
 
-      - name: Setup Python
-        uses: actions/setup-python@main
-        with:
-          python-version: '3.12.3' # Use the python version required by your repo
+      # No actions/setup-python step: this self-hosted runner already has
+      # 3.12.3 installed via pyenv, and pants.toml's [python-bootstrap]
+      # search_path includes "<PYENV>", so Pants finds it directly. (GitHub's
+      # hosted-tool manifest has no prebuilt 3.12.3 for this runner's OS anyway.)
 
       - name: Initialize Pants
         shell: bash
@@ -58,17 +58,24 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$HOME/.cache/spark-ivy"
+          docker run --rm -v "$HOME/.cache/spark-ivy:/ivy:rw" busybox \
+            chown -R "$(id -u):$(id -g)" /ivy
           chmod -R 0777 "$HOME/.cache/spark-ivy"
           echo "SPARK_IVY_CACHE_DIR=$HOME/.cache/spark-ivy" >> "$GITHUB_ENV"
+
+          mkdir -p "$HOME/.cache/pytest-tmp"
+          echo "PYTEST_TMP_BASE=$HOME/.cache/pytest-tmp" >> "$GITHUB_ENV"
 
       - name: Start Spark Connect server
         shell: bash
         run: |
-          docker run -d \
-            --name spark-connect-test \
+          # No --name: this is a persistent self-hosted runner, so a fixed name
+          # collides across concurrent workflow runs. Docker assigns a unique
+          # name/ID instead; later steps address the container by that ID.
+          spark_container_id="$(docker run -d \
             --user 0:0 \
             -p 15002 \
-            -v /tmp:/tmp:rw \
+            -v "$HOME/.cache/pytest-tmp:$HOME/.cache/pytest-tmp:rw" \
             -v "$SPARK_IVY_CACHE_DIR:/opt/spark/work-dir/ivy:rw" \
             spark-connect-test:4.1.0 \
             /opt/spark/sbin/start-connect-server.sh \
@@ -77,12 +84,13 @@ jobs:
               --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
               --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
               --conf spark.sql.sources.default=delta \
-              --conf spark.jars.ivy=/opt/spark/work-dir/ivy
+              --conf spark.jars.ivy=/opt/spark/work-dir/ivy)"
+          echo "SPARK_CONTAINER_ID=$spark_container_id" >> "$GITHUB_ENV"
 
           timeout 600 bash -c \
-            'until docker logs spark-connect-test 2>&1 | grep -q "Spark Connect server started at:"; do sleep 2; done'
+            "until docker logs '$spark_container_id' 2>&1 | grep -q 'Spark Connect server started at:'; do sleep 2; done"
 
-          spark_connect_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "15002/tcp") 0).HostPort}}' spark-connect-test)"
+          spark_connect_port="$(docker inspect -f '{{(index (index .NetworkSettings.Ports "15002/tcp") 0).HostPort}}' "$spark_container_id")"
           echo "WHICH_SPARK=remote" >> "$GITHUB_ENV"
           echo "SPARK_CONNECT_PORT=$spark_connect_port" >> "$GITHUB_ENV"
 
@@ -101,7 +109,7 @@ jobs:
       - name: Stop Spark Connect server
         if: always()
         shell: bash
-        run: docker rm -f spark-connect-test
+        run: '[ -n "$SPARK_CONTAINER_ID" ] && docker rm -f "$SPARK_CONTAINER_ID" || true'
 
       - name: Enforce minimum test count
         run: |

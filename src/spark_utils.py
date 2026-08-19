@@ -1,4 +1,5 @@
 import os
+import sys
 
 from delta import configure_spark_with_delta_pip  # type: ignore
 from pyspark.sql.session import SparkSession
@@ -24,6 +25,14 @@ def get_spark(use_dbc=False):
     spark_remote = os.environ.get("SPARK_REMOTE")
     if spark_remote:
         return SparkSession.builder.remote(spark_remote).getOrCreate()
+
+    # Pin the worker interpreter to the one actually running this process. Left
+    # unset, Spark resolves "python3" independently for the worker daemon, which
+    # can land on a different Python build than the driver's when launched from
+    # an IDE (mismatched sys.executable vs. PATH resolution) -- causing worker
+    # crashes like "SRE module mismatch" that don't reproduce from the CLI.
+    os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+    os.environ.setdefault("PYSPARK_DRIVER_PYTHON", sys.executable)
 
     warehouse_dir = os.environ.get(
         "SPARK_WAREHOUSE_DIR",

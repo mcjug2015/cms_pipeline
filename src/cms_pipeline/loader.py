@@ -33,10 +33,6 @@ class AbstractLoader(ABC, Unwrapper):
     def get_first_header_cell_val(self):
         pass
 
-    @abstractmethod
-    def get_s3_zip_uri(self):
-        pass
-
     def get_non_empty_cells(self, row):
         return [c for c in row if c is not None and str(c).strip() != ""]
 
@@ -119,31 +115,37 @@ class AbstractLoader(ABC, Unwrapper):
         df.writeTo(f"{cat}.{schema}.open_cms_data_kvp").append()
         return len(rows)
 
-    def load(self, spark: SparkSession, cat: str, schema: str) -> Dict[str, int]:
-        with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
-            zip_path = download_s3_zip(spark, self.get_s3_zip_uri(), tmp_dir)
-            with self.unwrap(zip_path) as xlsx_path:
-                sheet_index, data_rows = self.parse_sheet(xlsx_path)
-                load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
-                zip_name = os.path.basename(zip_path)
-                unzipped_name = self.inner_file_name
+    def load_spreadsheet(
+        self, spark: SparkSession, cat: str, schema: str, zip_name: str, xlsx_path: str
+    ) -> Dict[str, int]:
+        sheet_index, data_rows = self.parse_sheet(xlsx_path)
+        load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
+        unzipped_name = self.inner_file_name
 
-                self.insert_kvp_rows(
-                    spark,
-                    cat,
-                    schema,
-                    load_id,
-                    zip_name,
-                    unzipped_name,
-                    self.get_sheet_name(),
-                    sheet_index,
-                    data_rows,
-                )
-
+        self.insert_kvp_rows(
+            spark,
+            cat,
+            schema,
+            load_id,
+            zip_name,
+            unzipped_name,
+            self.get_sheet_name(),
+            sheet_index,
+            data_rows,
+        )
         logger.info(
             f"load_id:{load_id} loaded {len(data_rows)} enrollment rows from sheet '{self.get_sheet_name()}'"
         )
         return {"data_rows": len(data_rows)}
+
+    def load_zip(
+        self, spark: SparkSession, cat: str, schema: str, s3_zip_uri: str
+    ) -> Dict[str, int]:
+        with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
+            zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
+            with self.unwrap(zip_path) as xlsx_path:
+                zip_name = os.path.basename(zip_path)
+                return self.load_spreadsheet(spark, cat, schema, zip_name, xlsx_path)
 
 
 class TotOrigMeMaOhpEnroll(AbstractLoader):
@@ -174,7 +176,8 @@ def main(*args, **kwargs):  # pragma: no cover
         )
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    TotOrigMeMaOhpEnroll().load(spark, cat, schema)
+    loader = TotOrigMeMaOhpEnroll()
+    loader.load_zip(spark, cat, schema, loader.get_s3_zip_uri())
     sql_result = spark.sql("select 1")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     logger.info(f"loader main end {results}")

@@ -21,7 +21,7 @@ resolves = { python-default = "src/python-default.lock", py-reqs-dev = "test/pyt
 search_path = ["<PATH>", "<PYENV>"]
 
 [test]
-extra_env_vars = ["WHICH_SPARK", "SPARK_CONNECT_HOST", "SPARK_CONNECT_PORT"]
+extra_env_vars = ["WHICH_SPARK", "SPARK_CONNECT_HOST", "SPARK_CONNECT_PORT", "PYTEST_TMP_BASE"]
 
 [coverage-py]
 filter = ["src"]
