@@ -43,7 +43,7 @@ def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
 
 def get_workbook_sheet_info_dict(workbook):
     if "Table of Contents" not in workbook:
-        sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheet_names()}
+        sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheetnames}
         logger.info(
             "No 'Table of Contents' sheet in workbook, sheet info will be blank"
         )

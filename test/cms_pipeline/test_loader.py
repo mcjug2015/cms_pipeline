@@ -121,7 +121,7 @@ def test_get_sheet_info_dict_returns_name_to_description_mapping():
     }
 
 
-def get_workbook_sheet_info_dict_no_toc():
+def test_get_workbook_sheet_info_dict_no_toc():
     workbook = load_workbook(os.path.join(RES_DIR, "parse_sheet_sample.xlsx"))
     result = get_workbook_sheet_info_dict(workbook)
 
@@ -133,7 +133,7 @@ def get_workbook_sheet_info_dict_no_toc():
 @mock.patch(
     "src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing"
 )
-def get_workbook_sheet_info_dict_toc(get_sheet_info_dict):
+def test_get_workbook_sheet_info_dict_toc(get_sheet_info_dict):
     workbook = load_workbook(os.path.join(RES_DIR, "get_sheet_info_dict_sample.xlsx"))
     result = get_workbook_sheet_info_dict(workbook)
 
