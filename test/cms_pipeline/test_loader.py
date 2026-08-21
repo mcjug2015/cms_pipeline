@@ -1,21 +1,32 @@
 import os
 from unittest import mock
 
-from src.cms_pipeline.loader import AbstractLoader
+from openpyxl.reader.excel import load_workbook
 
+from src import custom_logging
+from src.cms_pipeline.loader import (
+    get_non_empty_cells,
+    get_sheet_info_dict,
+    get_workbook_sheet_info_dict,
+    insert_kvp_rows,
+    is_only_text_cell,
+    load_zip_workbook,
+    parse_sheet,
+)
+
+logger = custom_logging.setup_logging().getLogger(__name__)
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
-def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
+def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
     """
     TODO XXX validate that the schema for these tests is different from the ones test_manipulator and others get
     """
     spark = migrated_spark[0]
     schema = migrated_spark[1]
-    loader = AbstractLoader("test inner file name")
-    loader.insert_kvp_rows(
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
+    insert_kvp_rows(
         spark,
         cat="spark_catalog",
         schema=schema,
@@ -37,10 +48,8 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark):
     convert_to_key.assert_called_once()
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 def test_insert_kvp_rows_no_rows():
-    loader = AbstractLoader("test inner file name")
-    result = loader.insert_kvp_rows(
+    result = insert_kvp_rows(
         None,
         cat=None,
         schema=None,
@@ -54,105 +63,95 @@ def test_insert_kvp_rows_no_rows():
     assert result == 0
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 @mock.patch("src.cms_pipeline.loader.download_s3_zip", return_value="/i/am/not/real")
 @mock.patch(
     "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
-@mock.patch(
-    "src.cms_pipeline.loader.AbstractLoader.parse_sheet",
-    return_value=(77, [{"i am a fake": "data row"}]),
-)
-@mock.patch("src.cms_pipeline.loader.AbstractLoader.insert_kvp_rows")
-def test_load_success(insert_kvp_rows, parse_sheet, unwrap, download_s3_zip):
+@mock.patch("src.cms_pipeline.loader.load_cms_workbook", return_value=1)
+@mock.patch("src.cms_pipeline.loader.load_workbook")
+def test_load_success(load_workbook, load_cms_workbook, unwrap, download_s3_zip):
     parse_sheet.return_value = (3, [{"test_key": "test_val"}])
     spark = mock.MagicMock(name="spark")
     unwrap.return_value.__enter__.return_value = "/fake/xlsx"
 
-    loader = AbstractLoader("test inner file name")
-    result = loader.load_zip(spark, "test_cat", "test_schema", "test_fake_s3_uri")
+    result = load_zip_workbook(spark, "test_cat", "test_schema", "test_fake_s3_uri")
 
-    assert result["data_rows"] == 1
-    insert_kvp_rows.assert_called_once()
-    parse_sheet.assert_called_once()
+    assert result == 1
+    load_workbook.assert_called_once()
+    load_cms_workbook.assert_called_once()
     unwrap.assert_called_once()
     download_s3_zip.assert_called_once()
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 def test_get_non_empty_cells():
-    loader = AbstractLoader("test inner file name")
+    result = get_non_empty_cells((None, "", "   ", 0, "Year", "  Year  "))
 
-    result = loader.get_non_empty_cells((None, "", "   ", 0, "Year", "  Year  "))
-
-    assert result == [0, "Year", "  Year  "]
+    assert result == ["0", "Year", "Year"]
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 def test_is_only_text_cell_multiple_cells_returns_false():
-    loader = AbstractLoader("test inner file name")
-
-    result = loader.is_only_text_cell(["FooterNote", "Metric"])
+    result = is_only_text_cell(["FooterNote", "Metric"])
 
     assert result is False
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 def test_is_only_text_cell_single_text_cell_returns_true():
-    loader = AbstractLoader("test inner file name")
-
-    result = loader.is_only_text_cell(["FooterNote"])
+    result = is_only_text_cell(["FooterNote"])
 
     assert result is True
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
 def test_is_only_text_cell_single_non_text_cell_returns_false():
-    loader = AbstractLoader("test inner file name")
-
-    result = loader.is_only_text_cell(["12345"])
+    result = is_only_text_cell(["12345"])
 
     assert result is False
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
-@mock.patch(
-    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
-    return_value="TestSheet",
-)
-@mock.patch(
-    "src.cms_pipeline.loader.AbstractLoader.get_first_header_cell_val",
-    return_value="Year",
-)
-def test_parse_sheet_returns_data_rows(get_first_header_cell_val, get_sheet_name):
-    loader = AbstractLoader("test inner file name")
+def test_get_sheet_info_dict_returns_name_to_description_mapping():
+    workbook = load_workbook(os.path.join(RES_DIR, "get_sheet_info_dict_sample.xlsx"))
+    result = get_sheet_info_dict(workbook["Table of Contents"])
 
-    sheet_index, data_rows = loader.parse_sheet(
-        os.path.join(RES_DIR, "parse_sheet_sample.xlsx")
-    )
+    # title row (one populated cell), the "Table Name" header row, and the row
+    # with only a description (no table name) must all be skipped; whitespace
+    # is stripped and extra trailing columns are ignored.
+    assert result == {
+        "SHEET_A": "Description A",
+        "SHEET_B": "Description B",
+        "SHEET_C": "Description C",
+    }
 
-    assert sheet_index == 0
+
+def get_workbook_sheet_info_dict_no_toc():
+    workbook = load_workbook(os.path.join(RES_DIR, "parse_sheet_sample.xlsx"))
+    result = get_workbook_sheet_info_dict(workbook)
+
+    assert result == {
+        "TestSheet": "",
+    }
+
+
+@mock.patch(
+    "src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing"
+)
+def get_workbook_sheet_info_dict_toc(get_sheet_info_dict):
+    workbook = load_workbook(os.path.join(RES_DIR, "get_sheet_info_dict_sample.xlsx"))
+    result = get_workbook_sheet_info_dict(workbook)
+
+    assert result == "testing testing"
+    get_sheet_info_dict.assert_called_once()
+
+
+def test_parse_sheet_returns_data_rows():
+    workbook = load_workbook(os.path.join(RES_DIR, "parse_sheet_sample.xlsx"))
+    data_rows = parse_sheet(workbook["TestSheet"])
     assert data_rows == [
         {"Year": "2023", "Metric": "TotalEnroll", "Value": "100"},
         {"Year": "2024", "Metric": "TotalEnroll", "Value": "200"},
     ]
-    get_sheet_name.assert_called_once()
-    # called once per header-scan row until the header ("Year") is matched
-    assert get_first_header_cell_val.call_count == 2
 
 
-@mock.patch.multiple(AbstractLoader, __abstractmethods__=set())
-@mock.patch(
-    "src.cms_pipeline.loader.AbstractLoader.get_sheet_name",
-    return_value="TestSheet",
-)
-def test_parse_sheet_returns_no_rows(get_sheet_name):
-    loader = AbstractLoader("test inner file name")
+def test_parse_sheet_returns_no_rows():
+    workbook = load_workbook(os.path.join(RES_DIR, "parse_sheet_no_rows_sample.xlsx"))
+    data_rows = parse_sheet(workbook["TestSheet"])
 
-    sheet_index, data_rows = loader.parse_sheet(
-        os.path.join(RES_DIR, "parse_sheet_no_rows_sample.xlsx")
-    )
-
-    assert sheet_index == 0
     assert data_rows == []
-    get_sheet_name.assert_called_once()

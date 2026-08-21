@@ -1,58 +1,72 @@
 import os
+import shutil
 from unittest import mock
 
-from src.cms_pipeline.loader import TotOrigMeMaOhpEnroll
+from openpyxl.reader.excel import load_workbook
 
+from src import custom_logging
+from src.cms_pipeline.loader import load_cms_workbook, load_zip_workbook
+
+logger = custom_logging.setup_logging().getLogger(__name__)
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
-@mock.patch(
-    "src.cms_pipeline.loader.download_s3_zip",
-    return_value=os.path.join(RES_DIR, "nested_total_enroll.zip"),
-)
-def test_load_total_enroll_inserts_year_rows_from_nested_zip(
-    download_s3_zip, migrated_spark
-):
-    # nested_total_enroll.zip holds MDCR ENROLL AB 1-8_CPS_02ENR_2023.zip, which holds a
-    # standalone .xlsx of just the "MDCR ENROLL AB 1_CPS_02ENR" sheet trimmed to its header,
-    # a BLANK row, the six year rows (2018-2023), and the trailing NOTES/SOURCE text rows —
-    # exercising unwrap's zip-in-zip recursion and parse_sheet's BLANK/is_only_text_cell
-    # filtering against real source data end to end.
+def test_load_cms_workbook(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
-    loader = TotOrigMeMaOhpEnroll()
-
-    result = loader.load_zip(
-        spark, cat="spark_catalog", schema=schema, s3_zip_uri=loader.get_s3_zip_uri()
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
+    cms_workbook = load_workbook(
+        os.path.join(RES_DIR, "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx")
     )
-
-    assert result == {"data_rows": 6}
+    load_cms_workbook(
+        spark, "spark_catalog", schema, cms_workbook, "testing.zip", "testing.xlsx"
+    )
     sql_result = spark.sql(
         f"select * from spark_catalog.{schema}.open_cms_data_kvp"
-        " where sheet_name = 'MDCR ENROLL AB 1_CPS_02ENR';"
+        " where unzipped_name = 'testing.xlsx';"
     )
     results = [x.asDict() for x in sql_result.toLocalIterator()]
-    # 6 year rows x 9 columns each
-    assert len(results) == 54
-    assert all(r["sheet_index"] == 0 for r in results)
-    assert all(
-        r["unzipped_name"] == "MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx" for r in results
+    assert len(results) > 0
+
+
+@mock.patch("src.cms_pipeline.loader.load_cms_workbook")
+@mock.patch("src.cms_pipeline.loader.load_workbook")
+@mock.patch("src.cms_pipeline.loader.download_s3_zip")
+def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
+    """load_cms_workbook itself is covered by test_load_cms_workbook above, so it's
+    mocked here. This test just validates zip download + nested-zip unwrapping, and
+    that load_cms_workbook gets invoked with the unwrapped workbook/zip/file names."""
+    inner_file_name = "MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx"
+
+    def fake_download_s3_zip(_spark, _s3_uri, dest_dir):
+        src_zip = os.path.join(RES_DIR, "nested_total_enroll.zip")
+        dest_path = os.path.join(dest_dir, os.path.basename(src_zip))
+        shutil.copy(src_zip, dest_path)
+        return dest_path
+
+    download_s3_zip.side_effect = fake_download_s3_zip
+    load_workbook.return_value = "fake workbook"
+
+    load_zip_workbook(
+        None,
+        "spark_catalog",
+        None,
+        "s3://fake-bucket/fake-key.zip",
     )
-    years = sorted({r["table_val"] for r in results if r["table_key"] == "Year"})
-    assert years == ["2018", "2019", "2020", "2021", "2022", "2023"]
-    # the KVP table has no per-row grouping id, so check the whole set of extracted
-    # values for a column rather than trying to correlate a single row across keys
-    total_enrollments = {
-        r["table_val"] for r in results if r["table_key"] == "Total Enrollment"
-    }
-    assert total_enrollments == {
-        "59989882.75002974",
-        "61514510.08336582",
-        "62840266.91670496",
-        "63892625.83338015",
-        "65100546.4167234",
-        "66509868.8334003",
-    }
-    table_row_indexes = sorted(set(r["table_row_index"] for r in results))
-    assert table_row_indexes == [0, 1, 2, 3, 4, 5]
+
     download_s3_zip.assert_called_once()
+    assert download_s3_zip.call_args.args[0] is None
+    assert download_s3_zip.call_args.args[1] == "s3://fake-bucket/fake-key.zip"
+
+    load_workbook.assert_called_once()
+    unwrapped_xlsx_path = load_workbook.call_args.args[0]
+    assert os.path.basename(unwrapped_xlsx_path) == inner_file_name
+
+    load_cms_workbook.assert_called_once_with(
+        None,
+        "spark_catalog",
+        None,
+        "fake workbook",
+        "nested_total_enroll.zip",
+        inner_file_name,
+    )

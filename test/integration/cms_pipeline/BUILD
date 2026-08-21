@@ -7,5 +7,5 @@ python_tests(
 
 resources(
     name="loader_res",
-    sources=["res/nested_total_enroll.zip"],
+    sources=["res/nested_total_enroll.zip", "res/MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx"],
 )
