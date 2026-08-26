@@ -5,7 +5,7 @@ import re
 import sys
 import tempfile
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from openpyxl import load_workbook
 from pyspark.sql import Row, SparkSession
@@ -30,6 +30,31 @@ def is_only_text_cell(non_empty_cells) -> bool:
     if len(non_empty_cells) == 1 and bool(re.search(r"[A-Za-z]", non_empty_cells[0])):
         return True
     return False
+
+
+def get_decimal_places(number_format: Optional[str]) -> Optional[int]:
+    if not number_format or number_format in ("General", "@"):
+        return None
+    fmt = number_format.split(";")[0]
+    fmt = re.sub(r'"[^"]*"', "", fmt)
+    fmt = re.sub(r"\[[^\]]*\]", "", fmt)
+    match = re.search(r"\.(0+)", fmt)
+    if match:
+        return len(match.group(1))
+    if re.search(r"[0#]", fmt):
+        return 0
+    return None
+
+
+def get_display_value(cell) -> Any:
+    value = cell.value
+    if isinstance(value, float):
+        decimals = get_decimal_places(cell.number_format)
+        if decimals is not None:
+            value = round(value, decimals)
+            if decimals == 0:
+                value = int(value)
+    return value
 
 
 def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
@@ -68,10 +93,9 @@ def parse_sheet(
     if not col_index_to_header_col_name:
         return data_rows
 
-    for idx, row in enumerate(
-        worksheet.iter_rows(min_row=header_row_idx + 2, values_only=True)
-    ):
-        cells = get_non_empty_cells(row)
+    for idx, row in enumerate(worksheet.iter_rows(min_row=header_row_idx + 2)):
+        row_values = [get_display_value(cell) for cell in row]
+        cells = get_non_empty_cells(row_values)
         if (
             len(cells) > 0
             and len(cells[0]) > 0
@@ -176,15 +200,44 @@ def main(*args, **kwargs):  # pragma: no cover
         )
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
+    main_s3(spark, cat, schema)
+    sql_result = spark.sql("select 1")
+    results = [x.asDict() for x in sql_result.toLocalIterator()]
+    logger.info(f"loader main end {results}")
+
+
+def main_s3(spark, cat, schema):  # pragma: no cover
+    logger.info("loader main s3 begins")
     load_zip_workbook(
         spark,
         cat,
         schema,
-        "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment ALL.zip",  # noqa: E501
+        "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip",  # noqa: E501
     )
-    sql_result = spark.sql("select 1")
-    results = [x.asDict() for x in sql_result.toLocalIterator()]
-    logger.info(f"loader main end {results}")
+
+
+def main_local_file(spark, cat, schema):  # pragma: no cover
+    logger.info("loader main local file begins")
+    workbook = load_workbook(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "test",
+            "integration",
+            "cms_pipeline",
+            "res",
+            "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+        )
+    )
+    load_cms_workbook(
+        spark,
+        cat,
+        schema,
+        workbook,
+        "placeholder.zip",
+        "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -192,7 +245,7 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--cat",
         help="catalog name to use",
-        default="b_260723_01_dbr_dbc_cat",
+        default="b_260820_01_dbr_dbc_cat",
     )
     parser.add_argument(
         "--schema",

@@ -5,6 +5,8 @@ from openpyxl.reader.excel import load_workbook
 
 from src import custom_logging
 from src.cms_pipeline.loader import (
+    get_decimal_places,
+    get_display_value,
     get_non_empty_cells,
     get_sheet_info_dict,
     get_workbook_sheet_info_dict,
@@ -105,6 +107,78 @@ def test_is_only_text_cell_single_non_text_cell_returns_false():
     result = is_only_text_cell(["12345"])
 
     assert result is False
+
+
+def test_get_decimal_places_none_returns_none():
+    result = get_decimal_places(None)
+
+    assert result is None
+
+
+def test_get_decimal_places_integer_format_returns_zero():
+    result = get_decimal_places("#,##0")
+
+    assert result == 0
+
+
+def test_get_decimal_places_two_decimal_format_returns_two():
+    result = get_decimal_places("#,##0.00")
+
+    assert result == 2
+
+
+def test_get_decimal_places_date_format_returns_none():
+    result = get_decimal_places("yyyy-mm-dd")
+
+    assert result is None
+
+
+@mock.patch("src.cms_pipeline.loader.get_decimal_places")
+def test_get_display_value_non_float_returns_value_unchanged(get_decimal_places):
+    cell = mock.MagicMock(value="Alabama", number_format="General")
+
+    result = get_display_value(cell)
+
+    assert result == "Alabama"
+    get_decimal_places.assert_not_called()
+
+
+@mock.patch("src.cms_pipeline.loader.get_decimal_places", return_value=None)
+def test_get_display_value_float_with_no_decimals_info_returns_value_unchanged(
+    get_decimal_places,
+):
+    cell = mock.MagicMock(value=21324800.41667978, number_format="General")
+
+    result = get_display_value(cell)
+
+    assert result == 21324800.41667978
+    get_decimal_places.assert_called_once_with("General")
+
+
+@mock.patch("src.cms_pipeline.loader.get_decimal_places", return_value=0)
+def test_get_display_value_float_with_zero_decimals_returns_rounded_int(
+    get_decimal_places,
+):
+    cell = mock.MagicMock(value=21324800.41667978, number_format="#,##0")
+
+    result = get_display_value(cell)
+
+    assert result == 21324800
+    assert isinstance(result, int)
+    get_decimal_places.assert_called_once_with("#,##0")
+
+
+@mock.patch("src.cms_pipeline.loader.get_decimal_places", return_value=2)
+def test_get_display_value_float_with_nonzero_decimals_returns_rounded_float(
+    get_decimal_places,
+):
+    cell = mock.MagicMock(value=21324800.4166, number_format="#,##0.00")
+
+    result = get_display_value(cell)
+
+    assert result == 21324800.42
+    assert isinstance(result, float)
+    get_decimal_places.assert_called_once_with("#,##0.00")
 
 
 def test_get_sheet_info_dict_returns_name_to_description_mapping():
