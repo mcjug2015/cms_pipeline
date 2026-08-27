@@ -22,9 +22,6 @@ RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
 def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
-    """
-    TODO XXX validate that the schema for these tests is different from the ones test_manipulator and others get
-    """
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
@@ -37,7 +34,9 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
         unzipped_name="test unzipped",
         sheet_name="test sheet name",
         sheet_index=0,
-        data_rows=[{"test_key": "test_val"}],
+        data_rows=[
+            {"test_key": {"value": "test_val", "prev_only_text_cell": "test heading"}}
+        ],
     )
     sql_result = spark.sql(f"select * from spark_catalog.{schema}.open_cms_data_kvp;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
@@ -47,6 +46,7 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
     assert results[0]["table_key_simple"] == "test converted key"
     assert results[0]["table_row_index"] == 0
     assert results[0]["table_val"] == "test_val"
+    assert results[0]["heading"] == "test heading"
     convert_to_key.assert_called_once()
 
 
@@ -219,8 +219,16 @@ def test_parse_sheet_returns_data_rows():
     workbook = load_workbook(os.path.join(RES_DIR, "parse_sheet_sample.xlsx"))
     data_rows = parse_sheet(workbook["TestSheet"])
     assert data_rows == [
-        {"Year": "2023", "Metric": "TotalEnroll", "Value": "100"},
-        {"Year": "2024", "Metric": "TotalEnroll", "Value": "200"},
+        {
+            "Year": {"value": "2023", "prev_only_text_cell": ""},
+            "Metric": {"value": "TotalEnroll", "prev_only_text_cell": ""},
+            "Value": {"value": "100", "prev_only_text_cell": ""},
+        },
+        {
+            "Year": {"value": "2024", "prev_only_text_cell": ""},
+            "Metric": {"value": "TotalEnroll", "prev_only_text_cell": ""},
+            "Value": {"value": "200", "prev_only_text_cell": ""},
+        },
     ]
 
 

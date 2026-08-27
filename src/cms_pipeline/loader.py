@@ -93,9 +93,19 @@ def parse_sheet(
     if not col_index_to_header_col_name:
         return data_rows
 
+    prev_only_text_cell = ""
     for idx, row in enumerate(worksheet.iter_rows(min_row=header_row_idx + 2)):
         row_values = [get_display_value(cell) for cell in row]
         cells = get_non_empty_cells(row_values)
+
+        if (
+            len(cells) > 0
+            and len(cells[0]) > 0
+            and cells[0] != "BLANK"
+            and is_only_text_cell(cells)
+        ):
+            prev_only_text_cell = cells[0]
+
         if (
             len(cells) > 0
             and len(cells[0]) > 0
@@ -104,7 +114,10 @@ def parse_sheet(
         ):
             record = {}
             for idx, value_cell in enumerate(cells):
-                record[str(col_index_to_header_col_name[idx])] = str(value_cell)
+                record[str(col_index_to_header_col_name[idx])] = {
+                    "value": str(value_cell),
+                    "prev_only_text_cell": prev_only_text_cell,
+                }
             data_rows.append(record)
 
     return data_rows
@@ -119,7 +132,7 @@ def insert_kvp_rows(
     unzipped_name: str,
     sheet_name: str,
     sheet_index: int,
-    data_rows: List[Dict[str, str]],
+    data_rows: List[Dict[str, Any]],
 ) -> int:
     if not data_rows:
         return 0
@@ -137,7 +150,8 @@ def insert_kvp_rows(
                     table_key=the_key,
                     table_key_simple=table_key_simple,
                     table_row_index=idx,
-                    table_val=the_val,
+                    table_val=the_val["value"],
+                    heading=the_val["prev_only_text_cell"],
                 )
             )
     df = (
@@ -200,7 +214,7 @@ def main(*args, **kwargs):  # pragma: no cover
         )
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    main_s3(spark, cat, schema)
+    main_local_file(spark, cat, schema)
     sql_result = spark.sql("select 1")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     logger.info(f"loader main end {results}")
@@ -223,10 +237,6 @@ def main_local_file(spark, cat, schema):  # pragma: no cover
             os.path.dirname(__file__),
             "..",
             "..",
-            "test",
-            "integration",
-            "cms_pipeline",
-            "res",
             "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
         )
     )
