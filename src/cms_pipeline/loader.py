@@ -5,8 +5,7 @@ import re
 import sys
 import tempfile
 import uuid
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional
 
 from openpyxl import load_workbook
 from pyspark.sql import Row, SparkSession
@@ -23,144 +22,183 @@ from src.utils import convert_to_key, download_s3_zip
 logger = custom_logging.setup_logging().getLogger(__name__)
 
 
-class AbstractLoader(ABC, Unwrapper):
+def get_non_empty_cells(row):
+    return [str(c).strip() for c in row if c is not None and str(c).strip() != ""]
 
-    @abstractmethod
-    def get_sheet_name(self):
-        pass
 
-    @abstractmethod
-    def get_first_header_cell_val(self):
-        pass
+def is_only_text_cell(non_empty_cells) -> bool:
+    if len(non_empty_cells) == 1 and bool(re.search(r"[A-Za-z]", non_empty_cells[0])):
+        return True
+    return False
 
-    def get_non_empty_cells(self, row):
-        return [c for c in row if c is not None and str(c).strip() != ""]
 
-    def is_only_text_cell(self, non_empty_cells) -> bool:
-        if len(non_empty_cells) == 1 and bool(
-            re.search(r"[A-Za-z]", non_empty_cells[0])
-        ):
-            return True
-        return False
+def get_decimal_places(number_format: Optional[str]) -> Optional[int]:
+    if not number_format or number_format in ("General", "@"):
+        return None
+    fmt = number_format.split(";")[0]
+    fmt = re.sub(r'"[^"]*"', "", fmt)
+    fmt = re.sub(r"\[[^\]]*\]", "", fmt)
+    match = re.search(r"\.(0+)", fmt)
+    if match:
+        return len(match.group(1))
+    if re.search(r"[0#]", fmt):
+        return 0
+    return None
 
-    def parse_sheet(
-        self,
-        xlsx_path: str,
-    ) -> Tuple[int, List[Dict[str, Any]]]:
-        workbook = load_workbook(xlsx_path, data_only=True, read_only=True)
-        worksheet = workbook[self.get_sheet_name()]
 
-        data_rows: List[Dict[str, Any]] = []
-        col_index_to_header_col_name = {}
-        for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
-            cells = self.get_non_empty_cells(row)
-            if cells and cells[0] == self.get_first_header_cell_val():
-                for idx, header_cell in enumerate(cells):
-                    col_index_to_header_col_name[idx] = header_cell
-                break
+def get_display_value(cell) -> Any:
+    value = cell.value
+    if isinstance(value, float):
+        decimals = get_decimal_places(cell.number_format)
+        if decimals is not None:
+            value = round(value, decimals)
+            if decimals == 0:
+                value = int(value)
+    return value
 
-        for idx, row in enumerate(
-            worksheet.iter_rows(min_row=header_row_idx + 2, values_only=True)
-        ):
-            cells = self.get_non_empty_cells(row)
-            if (
-                len(cells) > 0
-                and len(str(cells[0]).strip()) > 0
-                and str(cells[0]).strip() != "BLANK"
-                and not self.is_only_text_cell(cells)
-            ):
-                record = {}
-                for idx, value_cell in enumerate(cells):
-                    record[str(col_index_to_header_col_name[idx])] = str(value_cell)
-                data_rows.append(record)
 
-        return workbook.index(worksheet), data_rows
+def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
+    result = {}
+    for row in toc_worksheet.iter_rows(values_only=True):
+        cells_w_values = get_non_empty_cells(row)
+        if len(cells_w_values) > 1 and cells_w_values[0] != "Table Name":
+            result[cells_w_values[0]] = cells_w_values[1]
+    return result
 
-    def insert_kvp_rows(
-        self,
-        spark: SparkSession,
-        cat: str,
-        schema: str,
-        load_id: str,
-        zip_name: str,
-        unzipped_name: str,
-        sheet_name: str,
-        sheet_index: int,
-        data_rows: List[Dict[str, str]],
-    ) -> int:
-        if not data_rows:
-            return 0
-        rows = []
-        for idx, data_row in enumerate(data_rows):
-            for the_key, the_val in data_row.items():
-                table_key_simple = convert_to_key(the_key)
-                rows.append(
-                    Row(
-                        load_id=load_id,
-                        zip_name=zip_name,
-                        unzipped_name=unzipped_name,
-                        sheet_name=sheet_name,
-                        sheet_index=sheet_index,
-                        table_key=the_key,
-                        table_key_simple=table_key_simple,
-                        table_row_index=idx,
-                        table_val=the_val,
-                    )
-                )
-        df = (
-            spark.createDataFrame(rows)
-            .withColumn("created_at", current_timestamp())
-            .withColumn("updated_at", current_timestamp())
+
+def get_workbook_sheet_info_dict(workbook):
+    if "Table of Contents" not in workbook:
+        sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheetnames}
+        logger.info(
+            "No 'Table of Contents' sheet in workbook, sheet info will be blank"
         )
-        df.writeTo(f"{cat}.{schema}.open_cms_data_kvp").append()
-        return len(rows)
+    else:
+        toc_worksheet = workbook["Table of Contents"]
+        sheet_info_dict = get_sheet_info_dict(toc_worksheet)
+    return sheet_info_dict
 
-    def load_spreadsheet(
-        self, spark: SparkSession, cat: str, schema: str, zip_name: str, xlsx_path: str
-    ) -> Dict[str, int]:
-        sheet_index, data_rows = self.parse_sheet(xlsx_path)
-        load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
-        unzipped_name = self.inner_file_name
 
-        self.insert_kvp_rows(
+def parse_sheet(
+    worksheet,
+) -> List[Dict[str, Any]]:
+    data_rows: List[Dict[str, Any]] = []
+    col_index_to_header_col_name = {}
+    for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
+        cells = get_non_empty_cells(row)
+        if cells and len(cells) > 1:
+            for idx, header_cell in enumerate(cells):
+                col_index_to_header_col_name[idx] = header_cell
+            break
+
+    if not col_index_to_header_col_name:
+        return data_rows
+
+    prev_only_text_cell = ""
+    for idx, row in enumerate(worksheet.iter_rows(min_row=header_row_idx + 2)):
+        row_values = [get_display_value(cell) for cell in row]
+        cells = get_non_empty_cells(row_values)
+
+        if (
+            len(cells) > 0
+            and len(cells[0]) > 0
+            and cells[0] != "BLANK"
+            and is_only_text_cell(cells)
+        ):
+            prev_only_text_cell = cells[0]
+
+        if (
+            len(cells) > 0
+            and len(cells[0]) > 0
+            and cells[0] != "BLANK"
+            and not is_only_text_cell(cells)
+        ):
+            record = {}
+            for idx, value_cell in enumerate(cells):
+                record[str(col_index_to_header_col_name[idx])] = {
+                    "value": str(value_cell),
+                    "prev_only_text_cell": prev_only_text_cell,
+                }
+            data_rows.append(record)
+
+    return data_rows
+
+
+def insert_kvp_rows(
+    spark: SparkSession,
+    cat: str,
+    schema: str,
+    load_id: str,
+    zip_name: str,
+    unzipped_name: str,
+    sheet_name: str,
+    sheet_index: int,
+    data_rows: List[Dict[str, Any]],
+) -> int:
+    if not data_rows:
+        return 0
+    rows = []
+    for idx, data_row in enumerate(data_rows):
+        for the_key, the_val in data_row.items():
+            table_key_simple = convert_to_key(the_key)
+            rows.append(
+                Row(
+                    load_id=load_id,
+                    zip_name=zip_name,
+                    unzipped_name=unzipped_name,
+                    sheet_name=sheet_name,
+                    sheet_index=sheet_index,
+                    table_key=the_key,
+                    table_key_simple=table_key_simple,
+                    table_row_index=idx,
+                    table_val=the_val["value"],
+                    heading=the_val["prev_only_text_cell"],
+                )
+            )
+    df = (
+        spark.createDataFrame(rows)
+        .withColumn("created_at", current_timestamp())
+        .withColumn("updated_at", current_timestamp())
+    )
+    df.writeTo(f"{cat}.{schema}.open_cms_data_kvp").append()
+    return len(rows)
+
+
+def load_cms_workbook(
+    spark: SparkSession, cat: str, schema: str, workbook, zip_name, unzipped_name
+):
+    sheet_info_dict = get_workbook_sheet_info_dict(workbook)
+    load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
+    for sheet_name, _sheet_desc in sheet_info_dict.items():
+        data_rows = parse_sheet(workbook[sheet_name])
+        insert_kvp_rows(
             spark,
             cat,
             schema,
             load_id,
             zip_name,
             unzipped_name,
-            self.get_sheet_name(),
-            sheet_index,
+            sheet_name,
+            list(sheet_info_dict.keys()).index(sheet_name),
             data_rows,
         )
-        logger.info(
-            f"load_id:{load_id} loaded {len(data_rows)} enrollment rows from sheet '{self.get_sheet_name()}'"
-        )
-        return {"data_rows": len(data_rows)}
-
-    def load_zip(
-        self, spark: SparkSession, cat: str, schema: str, s3_zip_uri: str
-    ) -> Dict[str, int]:
-        with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
-            zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
-            with self.unwrap(zip_path) as xlsx_path:
-                zip_name = os.path.basename(zip_path)
-                return self.load_spreadsheet(spark, cat, schema, zip_name, xlsx_path)
 
 
-class TotOrigMeMaOhpEnroll(AbstractLoader):
-
-    def __init__(self):  # pragma: no cover
-        super().__init__("MDCR ENROLL AB 1-8_CPS_02ENR_2023.xlsx")
-
-    def get_sheet_name(self):  # pragma: no cover
-        return "MDCR ENROLL AB 1_CPS_02ENR"
-
-    def get_first_header_cell_val(self):  # pragma: no cover
-        return "Year"
-
-    def get_s3_zip_uri(self):  # pragma: no cover
-        return "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment ALL.zip"  # noqa E501
+def load_zip_workbook(
+    spark: SparkSession, cat: str, schema: str, s3_zip_uri: str
+) -> Dict[str, int]:
+    with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
+        zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
+        with Unwrapper().unwrap(zip_path) as xlsx_path:
+            zip_name = os.path.basename(zip_path)
+            unzipped_name = os.path.basename(xlsx_path)
+            return load_cms_workbook(
+                spark,
+                cat,
+                schema,
+                load_workbook(xlsx_path, data_only=True, read_only=True),
+                zip_name,
+                unzipped_name,
+            )
 
 
 def main(*args, **kwargs):  # pragma: no cover
@@ -176,11 +214,40 @@ def main(*args, **kwargs):  # pragma: no cover
         )
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    loader = TotOrigMeMaOhpEnroll()
-    loader.load_zip(spark, cat, schema, loader.get_s3_zip_uri())
+    main_local_file(spark, cat, schema)
     sql_result = spark.sql("select 1")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     logger.info(f"loader main end {results}")
+
+
+def main_s3(spark, cat, schema):  # pragma: no cover
+    logger.info("loader main s3 begins")
+    load_zip_workbook(
+        spark,
+        cat,
+        schema,
+        "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip",  # noqa: E501
+    )
+
+
+def main_local_file(spark, cat, schema):  # pragma: no cover
+    logger.info("loader main local file begins")
+    workbook = load_workbook(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+        )
+    )
+    load_cms_workbook(
+        spark,
+        cat,
+        schema,
+        workbook,
+        "placeholder.zip",
+        "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -188,7 +255,7 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--cat",
         help="catalog name to use",
-        default="b_260723_01_dbr_dbc_cat",
+        default="b_260820_01_dbr_dbc_cat",
     )
     parser.add_argument(
         "--schema",

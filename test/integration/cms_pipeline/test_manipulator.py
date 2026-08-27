@@ -1,10 +1,16 @@
+from src import custom_logging
 from src.cms_pipeline import manipulator
 
+logger = custom_logging.setup_logging().getLogger(__name__)
 
-def test_main_runs_all_benchmarks_and_saves_metrics(migrated_spark):
+
+def test_main_runs_all_benchmarks_and_saves_metrics(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
-    rows_before = spark.sql(f"select count(*) as cnt from spark_catalog.{schema}.test_table;").collect()[0]["cnt"]
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
+    rows_before = spark.sql(
+        f"select count(*) as cnt from spark_catalog.{schema}.test_table;"
+    ).collect()[0]["cnt"]
 
     manipulator.main(cat="spark_catalog", schema=schema)
 
@@ -40,6 +46,8 @@ def test_main_runs_all_benchmarks_and_saves_metrics(migrated_spark):
     test_table_rows = spark.sql(
         f"select stuff from spark_catalog.{schema}.test_table order by int_id desc limit 1;"
     ).collect()
-    rows_after = spark.sql(f"select count(*) as cnt from spark_catalog.{schema}.test_table;").collect()[0]["cnt"]
+    rows_after = spark.sql(
+        f"select count(*) as cnt from spark_catalog.{schema}.test_table;"
+    ).collect()[0]["cnt"]
     assert rows_after == rows_before + 1
     assert test_table_rows[0]["stuff"].startswith("QQPP")

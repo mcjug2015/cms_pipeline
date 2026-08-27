@@ -18,9 +18,10 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 
 
 @mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())
-def test_abstract_benchmark_save_metric(migrated_spark):
+def test_abstract_benchmark_save_metric(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
     bmrk = AbstractBenchmark(
         spark,
         cat="spark_catalog",
@@ -44,9 +45,10 @@ def test_abstract_benchmark_execute(benchmark, save_metric):
     save_metric.assert_called_once()
 
 
-def test_single_row_insert(migrated_spark):
+def test_single_row_insert(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
     SingleRowInsert(
         spark,
         cat="spark_catalog",

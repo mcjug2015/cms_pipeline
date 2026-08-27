@@ -1,6 +1,7 @@
 import datetime
 import os
 import random
+import re
 import string
 import tempfile
 
@@ -72,19 +73,19 @@ def _migrate_schema(spark, schema):
     )
 
 
-@pytest.fixture(scope="session")
-def migrated_spark(test_spark):
-    if os.environ.get("WHICH_SPARK", "local") == "remote":
-        schema_name = f"b_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
-        schema_name += f"_{get_ascending_letters_within_minute()}"
-        schema_name += f"_{''.join(random.choices(string.ascii_letters, k=6))}"
-        logger.info(
-            f"WHICH_SPARK is remote w. value {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
-        )
-    else:
-        logger.info(
-            f"WHICH_SPARK is local with value {os.environ.get('WHICH_SPARK', 'local')}; using default schema name"
-        )
-        schema_name = "default"
+@pytest.fixture(scope="module")
+def migrated_spark(test_spark, request):
+    # module-scoped (one migrated schema per test file) so files can run against
+    # the same shared, session-scoped spark session without stepping on each
+    # other's tables.
+    module_slug = re.sub(r"\W+", "_", request.module.__name__)
+    schema_name = f"b_{module_slug}"
+    schema_name += f"_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
+    schema_name += f"_{get_ascending_letters_within_minute()}"
+    schema_name += f"_{''.join(random.choices(string.ascii_letters, k=6))}"
+    logger.info(
+        f"WHICH_SPARK is {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
+        f" for module {request.module.__name__}"
+    )
     _migrate_schema(test_spark, schema_name)
     yield (test_spark, schema_name)

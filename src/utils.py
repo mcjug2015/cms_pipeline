@@ -18,6 +18,9 @@ def convert_to_key(value: str) -> str:
     key = key.replace("enrollment", "enroll")
     key = key.replace("original", "orig")
     key = key.replace("percentage", "pct")
+    key = key.replace("without", "wo")
+    key = key.replace("count", "ct")
+    key = key.replace("/", "_")
     return re.sub(r"\s+", "_", key)
 
 
