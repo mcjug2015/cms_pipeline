@@ -12,10 +12,6 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
-      # Lets GITHUB_TOKEN delete the branch's image version from GHCR. Works
-      # because the image's org.opencontainers.image.source label links the
-      # package to this repo.
-      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@main
@@ -64,7 +60,10 @@ jobs:
         if: always()
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Same classic PAT as CI's push (see ci.yml), which also needs
+          # delete:packages here; GITHUB_TOKEN is refused on this user-owned
+          # package. The script reads it as GITHUB_TOKEN.
+          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DELETED_BRANCH: ${{ github.event.ref }}
         run: |
           # Same slug CI tagged the image with (scripts/build_migrated_image.sh).

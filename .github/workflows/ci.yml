@@ -7,8 +7,6 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
-      # Lets GITHUB_TOKEN push the pre-migrated Spark image to GHCR.
-      packages: write
     env:
       # Fan local process execution out across 12 cores on this 16-core runner.
       PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "12"
@@ -149,17 +147,28 @@ jobs:
       - name: Export pre-migrated Spark image to GHCR
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A classic PAT (write:packages) rather than GITHUB_TOKEN: the package
+          # is owned by the mcjug2015 user account, and GHCR answers GITHUB_TOKEN
+          # pushes to it with 403 even with `packages: write` granted.
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
+          # This self-hosted runner is a real user account: without its own
+          # DOCKER_CONFIG, `docker login` here would overwrite that user's own
+          # ghcr.io credentials (and leave an expired token behind if the push
+          # fails). Under $RUNNER_TEMP, which the runner wipes after each job and
+          # snap-confined docker can still reach, being inside $HOME.
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG"' EXIT
+
           # Every branch pushes its slug tag. Only a push to main (i.e. a merge)
           # also moves `latest`, so a branch build can never displace it.
           export_args=(--push)
           if [ "$GITHUB_REF_NAME" = "main" ]; then
             export_args+=(--latest)
           fi
-          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_REPOSITORY_OWNER" --password-stdin
           scripts/build_migrated_image.sh "${export_args[@]}"
-          docker logout ghcr.io
 
       - name: Apply ddl
         env:
