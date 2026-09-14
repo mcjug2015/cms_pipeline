@@ -1,0 +1,12 @@
+# Deny-all + allowlist. docker/spark-migrated/Dockerfile is the only image built
+# from the repo root as its context, and it needs nothing but the migration
+# chains and the thin runner beside them. Without this, the context would also
+# ship actions-runner/ (~2.3G of self-hosted runner state), .git/, dist/ and
+# .pants.d/ to the daemon on every build.
+#
+# docker/pyspark-validate and docker/spark-connect use their own subdirectory as
+# context, so this file does not affect them.
+*
+!src/__init__.py
+!src/crutch_migrations/**
+!docker/spark-migrated/register_tables.py
