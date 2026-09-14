@@ -4,8 +4,8 @@
 # ship actions-runner/ (~2.3G of self-hosted runner state), .git/, dist/ and
 # .pants.d/ to the daemon on every build.
 #
-# docker/pyspark-validate and docker/spark-connect use their own subdirectory as
-# context, so this file does not affect them.
+# docker/spark-connect uses its own subdirectory as context, so this file does
+# not affect it.
 *
 !src/__init__.py
 !src/crutch_migrations/**

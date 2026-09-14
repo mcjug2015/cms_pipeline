@@ -42,7 +42,7 @@ slug="$(bash "$SCRIPT_DIR/branch_slug.sh" "$branch")"
 echo "Branch '$branch' -> slug '$slug'" >&2
 
 # The migrated image's final stage is FROM this, so it has to exist first. Same
-# build the CI "Build Spark Connect test image" step and start_spark_connect.sh do.
+# build as CI's "Build Spark Connect test image" step.
 echo "Building base $BASE_IMAGE_TAG..." >&2
 docker build -t "$BASE_IMAGE_TAG" "$REPO_ROOT/docker/spark-connect/"
 
