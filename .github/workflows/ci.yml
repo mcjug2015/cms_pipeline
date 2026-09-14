@@ -5,6 +5,10 @@ on:
 jobs:
   validate-and-generate:
     runs-on: self-hosted
+    permissions:
+      contents: read
+      # Lets GITHUB_TOKEN push the pre-migrated Spark image to GHCR.
+      packages: write
     env:
       # Fan local process execution out across 12 cores on this 16-core runner.
       PANTS_PROCESS_EXECUTION_LOCAL_PARALLELISM: "12"
@@ -141,6 +145,21 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
           if-no-files-found: error
+
+      - name: Export pre-migrated Spark image to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Every branch pushes its slug tag. Only a push to main (i.e. a merge)
+          # also moves `latest`, so a branch build can never displace it.
+          export_args=(--push)
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            export_args+=(--latest)
+          fi
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          scripts/build_migrated_image.sh "${export_args[@]}"
+          docker logout ghcr.io
 
       - name: Apply ddl
         env:
