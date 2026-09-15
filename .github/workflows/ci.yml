@@ -56,41 +56,61 @@ jobs:
           docker version
           docker info
 
-      - name: Build Spark Connect test image
+      - name: Log in to GHCR
         shell: bash
-        run: docker build -t spark-connect-test:4.1.0 docker/spark-connect/
+        env:
+          # A classic PAT (write:packages) rather than GITHUB_TOKEN: the package
+          # is owned by the mcjug2015 user account, and GHCR answers GITHUB_TOKEN
+          # pushes to it with 403 even with `packages: write` granted.
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          # This self-hosted runner is a real user account: without its own
+          # DOCKER_CONFIG, `docker login` here would overwrite that user's own
+          # ghcr.io credentials. Under $RUNNER_TEMP, which the runner wipes after
+          # each job and snap-confined docker can still reach, being inside $HOME.
+          # Exported for every later docker command; "Log out of GHCR" cleans up.
+          docker_config="$RUNNER_TEMP/docker-config"
+          mkdir -p "$docker_config"
+          echo "DOCKER_CONFIG=$docker_config" >> "$GITHUB_ENV"
+          echo "$GHCR_TOKEN" | DOCKER_CONFIG="$docker_config" \
+            docker login ghcr.io -u "$GITHUB_REPOSITORY_OWNER" --password-stdin
 
-      - name: Prepare Spark Connect ivy cache dir
+          # GHCR_IMAGE is also what scripts/build_migrated_image.sh reads. The tag
+          # is the branch slug, the same one that script pushes.
+          ghcr_image="ghcr.io/mcjug2015/cms-pipeline-spark-migrated"
+          slug="$(bash scripts/branch_slug.sh "$GITHUB_REF_NAME")"
+          echo "GHCR_IMAGE=$ghcr_image" >> "$GITHUB_ENV"
+          echo "MIGRATED_SPARK_IMAGE=$ghcr_image:$slug" >> "$GITHUB_ENV"
+
+      - name: Build and push pre-migrated Spark image
+        # Pushes only the branch slug tag. `latest` moves after the tests pass, in
+        # "Promote pre-migrated Spark image to latest", so a main build that fails
+        # its tests never displaces it.
+        shell: bash
+        run: scripts/build_migrated_image.sh --push
+
+      - name: Start pre-migrated Spark Connect server
         shell: bash
         run: |
-          mkdir -p "$HOME/.cache/spark-ivy"
-          docker run --rm -v "$HOME/.cache/spark-ivy:/ivy:rw" busybox \
-            chown -R "$(id -u):$(id -g)" /ivy
-          chmod -R 0777 "$HOME/.cache/spark-ivy"
-          echo "SPARK_IVY_CACHE_DIR=$HOME/.cache/spark-ivy" >> "$GITHUB_ENV"
-
           mkdir -p "$HOME/.cache/pytest-tmp"
           echo "PYTEST_TMP_BASE=$HOME/.cache/pytest-tmp" >> "$GITHUB_ENV"
 
-      - name: Start Spark Connect server
-        shell: bash
-        run: |
-          # No --name: this is a persistent self-hosted runner, so a fixed name
-          # collides across concurrent workflow runs. Docker assigns a unique
-          # name/ID instead; later steps address the container by that ID.
+          # Run what was pushed, not the local build, so the tests exercise the
+          # published image.
+          docker pull "$MIGRATED_SPARK_IMAGE"
+
+          # Not scripts/start_migrated_spark_connect.sh: its fixed name and port, and
+          # its removal of every other migrated container, would collide with
+          # concurrent runs and the runner user's own container on this shared
+          # docker. No --name, and a random host port, instead; later steps address
+          # the container by ID. Root so the server can write into the mounted
+          # pytest tmp dir. No --packages or ivy mount: the image bakes its jars and
+          # Delta/metastore config in, and its default CMD starts the server.
           spark_container_id="$(docker run -d \
             --user 0:0 \
             -p 15002 \
             -v "$HOME/.cache/pytest-tmp:$HOME/.cache/pytest-tmp:rw" \
-            -v "$SPARK_IVY_CACHE_DIR:/opt/spark/work-dir/ivy:rw" \
-            spark-connect-test:4.1.0 \
-            /opt/spark/sbin/start-connect-server.sh \
-              --wait \
-              --packages org.apache.spark:spark-connect_2.13:4.1.0,io.delta:delta-spark_4.1_2.13:4.3.1 \
-              --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension \
-              --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog \
-              --conf spark.sql.sources.default=delta \
-              --conf spark.jars.ivy=/opt/spark/work-dir/ivy)"
+            "$MIGRATED_SPARK_IMAGE")"
           echo "SPARK_CONTAINER_ID=$spark_container_id" >> "$GITHUB_ENV"
 
           timeout 600 bash -c \
@@ -144,31 +164,21 @@ jobs:
             dist/*.tar.gz
           if-no-files-found: error
 
-      - name: Export pre-migrated Spark image to GHCR
+      - name: Promote pre-migrated Spark image to latest
+        # Only a push to main (i.e. a merge) moves `latest`, and only once its
+        # tests have passed. Retags the exact image the tests ran against.
+        if: github.ref_name == 'main'
         shell: bash
-        env:
-          # A classic PAT (write:packages) rather than GITHUB_TOKEN: the package
-          # is owned by the mcjug2015 user account, and GHCR answers GITHUB_TOKEN
-          # pushes to it with 403 even with `packages: write` granted.
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          # This self-hosted runner is a real user account: without its own
-          # DOCKER_CONFIG, `docker login` here would overwrite that user's own
-          # ghcr.io credentials (and leave an expired token behind if the push
-          # fails). Under $RUNNER_TEMP, which the runner wipes after each job and
-          # snap-confined docker can still reach, being inside $HOME.
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
-          mkdir -p "$DOCKER_CONFIG"
-          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG"' EXIT
+          docker tag "$MIGRATED_SPARK_IMAGE" "$GHCR_IMAGE:latest"
+          docker push "$GHCR_IMAGE:latest"
 
-          # Every branch pushes its slug tag. Only a push to main (i.e. a merge)
-          # also moves `latest`, so a branch build can never displace it.
-          export_args=(--push)
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            export_args+=(--latest)
-          fi
-          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_REPOSITORY_OWNER" --password-stdin
-          scripts/build_migrated_image.sh "${export_args[@]}"
+      - name: Log out of GHCR
+        if: always()
+        shell: bash
+        run: |
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          rm -rf "$DOCKER_CONFIG"
 
       - name: Apply ddl
         env:
