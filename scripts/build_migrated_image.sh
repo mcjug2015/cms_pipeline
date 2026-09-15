@@ -9,11 +9,13 @@
 # The tag is always the branch slug from scripts/branch_slug.sh -- the same slug
 # the Databricks deployment and cleanup workflows key off, so a branch's image
 # and its catalog stay recognizably paired. `--latest` additionally tags the same
-# image `latest`. It is opt-in rather than inferred from being on main, so only
-# CI's push-to-main run publishes `latest`, never a local build of a dirty tree.
+# image `latest`. It is opt-in rather than inferred from being on main, so a local
+# build of a dirty tree never publishes `latest`. CI doesn't pass it: it pushes the
+# slug before its tests and retags that image `latest` on main only once they pass
+# (ci.yml's "Promote pre-migrated Spark image to latest").
 #
-# Pushing needs a prior `docker login ghcr.io` (CI does it with GITHUB_TOKEN;
-# locally, a PAT with write:packages).
+# Pushing needs a prior `docker login ghcr.io` with a PAT that has write:packages
+# (CI uses the GHCR_TOKEN secret).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,8 +43,7 @@ branch="${GITHUB_REF_NAME:-$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)}"
 slug="$(bash "$SCRIPT_DIR/branch_slug.sh" "$branch")"
 echo "Branch '$branch' -> slug '$slug'" >&2
 
-# The migrated image's final stage is FROM this, so it has to exist first. Same
-# build as CI's "Build Spark Connect test image" step.
+# The migrated image's final stage is FROM this, so it has to exist first.
 echo "Building base $BASE_IMAGE_TAG..." >&2
 docker build -t "$BASE_IMAGE_TAG" "$REPO_ROOT/docker/spark-connect/"
 

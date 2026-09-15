@@ -14,9 +14,14 @@ from spark_sql_migrations.spark_sql.spark_sql import (
 )
 from spark_sql_migrations.spark_utils import get_spark
 
-from src.crutch_migrations.run_crutch_migrations import get_migrations_dir
-
 logger = custom_logging.setup_logging().getLogger(__name__)
+
+# The parent of this project's migration chains, which spark_sql_migrations calls
+# migrations_root. test/BUILD's test_utils depends on the chain resources, so
+# they are in the sandbox at the same relative path as in the repo.
+CRUTCH_MIGRATIONS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "src", "crutch_migrations"
+)
 
 
 def pytest_configure(config):
@@ -71,15 +76,20 @@ def _migrate_schema(spark, schema):
         cat="spark_catalog",
         schema=schema,
         output_folder=output_folder,
-        migrations_root=get_migrations_dir(),
+        migrations_root=CRUTCH_MIGRATIONS_DIR,
     )
     run_migrations(
         spark,
         cat="spark_catalog",
         schema=schema,
         output_folder=output_folder,
-        migrations_root=get_migrations_dir(),
+        migrations_root=CRUTCH_MIGRATIONS_DIR,
     )
+
+
+@pytest.fixture(scope="session")
+def crutch_migrations_dir():
+    yield CRUTCH_MIGRATIONS_DIR
 
 
 @pytest.fixture(scope="module")

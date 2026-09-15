@@ -53,7 +53,7 @@ if [ -n "$stale_spark_containers" ]; then
   docker rm -f $stale_spark_containers >/dev/null
 fi
 
-# Same run shape as CI's "Start Spark Connect server" step: root, so the server
+# Same run shape as CI's "Start pre-migrated Spark Connect server" step: root, so the server
 # can write into the mounted pytest tmp dir, which tests hand it paths inside. No
 # --packages or ivy mount -- the image bakes its jars and Delta/metastore config
 # in, and its default CMD starts the Connect server. Published on loopback only:

@@ -1,27 +1,5 @@
-python_sources(
-    name="lib",
-    dependencies=[
-        ":all_spark_migrations",
-        ":dbr_only_migrations",
-    ],
-    # create_new_migration() writes a new .sql file into all_spark_migrations/
-    # beside this package; sandboxed `pants run` would write it into a throwaway
-    # chroot copy instead of the real migrations dir (same reason Django's
-    # makemigrations needs this off).
-    run_goal_use_sandbox=False,
-)
-
-python_sources(
-    name="lib_test",
-    dependencies=[
-        ":all_spark_migrations",
-        ":dbr_only_migrations",
-    ],
-    resolve="py-reqs-dev",
-)
-
-# Only the project-owned chains live here now. spark_sql_migrations ships migrations_initial/
-# and migration_templates/ inside its own wheel.
+# Only the project-owned chains live here. spark_sql_migrations ships the engine,
+# migrations_initial/ and migration_templates/ inside its own wheel.
 resources(
     name="all_spark_migrations",
     sources=["all_spark_migrations/*.sql"],
@@ -30,4 +8,27 @@ resources(
 resources(
     name="dbr_only_migrations",
     sources=["dbr_only_migrations/*.sql"],
+)
+
+# spark_sql_migrations' own console command, once per resolve. `pants run` runs a
+# pex_binary in a sandbox, so --migrations-dir and --output-path must be absolute.
+#
+# python-default pulls databricks-connect, whose pyspark.dbutils makes is_dbr()
+# true, so this one targets Databricks -- CI's "Apply ddl" step runs it.
+pex_binary(
+    name="spark-sql-migrations",
+    script="spark-sql-migrations",
+    dependencies=[
+        "src:reqs#spark_sql_migrations",
+        "src:reqs#databricks-connect",
+    ],
+)
+
+# py-reqs-dev pulls OSS pyspark instead, so this one targets local Spark or, with
+# SPARK_REMOTE set, a Spark Connect server (scripts/migrated_spark.sh).
+pex_binary(
+    name="spark-sql-migrations-local",
+    script="spark-sql-migrations",
+    resolve="py-reqs-dev",
+    dependencies=["test:reqs-dev#spark_sql_migrations"],
 )

@@ -16,5 +16,7 @@ python_tests(
 
 python_test_utils(
     name="test_utils",
+    # conftest.py points spark_sql_migrations at these by path, not by import.
+    dependencies=["src/crutch_migrations:all_spark_migrations"],
     resolve="py-reqs-dev",
 )

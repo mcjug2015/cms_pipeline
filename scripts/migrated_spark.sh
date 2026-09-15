@@ -54,9 +54,11 @@ start_migrated_spark() {
   # main gets applied incrementally, the way it will be on Databricks, and an
   # already-current chain proves a no-op re-run is clean.
   #
-  # :lib_test, not :lib like CI's "Apply ddl" step: :lib resolves against
-  # databricks-connect, whose pyspark.dbutils makes is_dbr() true and would send
-  # this to Databricks instead of the container.
+  # :spark-sql-migrations-local, not :spark-sql-migrations like CI's "Apply ddl"
+  # step: that one resolves against databricks-connect, whose pyspark.dbutils makes
+  # is_dbr() true and would send this to Databricks instead of the container.
+  # Absolute --migrations-dir: pants runs the pex in a sandbox.
   SPARK_REMOTE="sc://${SPARK_CONNECT_HOST:-localhost}:$SPARK_CONNECT_PORT" \
-    pants run src/crutch_migrations/run_crutch_migrations.py:lib_test -- run
+    pants run src/crutch_migrations:spark-sql-migrations-local -- run \
+      --migrations-dir="$(cd "$MIGRATED_SPARK_SCRIPT_DIR/.." && pwd)/src/crutch_migrations"
 }
