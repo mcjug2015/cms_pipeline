@@ -187,8 +187,9 @@ jobs:
             # Share the computed catalog and branch slug with later steps (deploy).
             echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
             echo "BRANCH_SLUG=${branch_cat}" >> "$GITHUB_ENV"
-            pants run src/crutch_migrations/run_crutch_migrations.py:lib -- run --cat="${cat_name}" --schema=testing_testing
-            echo "done running pants run src/crutch_migrations/run_crutch_migrations.py!!!!"
+            pants run src/crutch_migrations:spark-sql-migrations -- run --cat="${cat_name}" --schema=testing_testing \
+              --migrations-dir="${GITHUB_WORKSPACE}/src/crutch_migrations"
+            echo "done running spark-sql-migrations!!!!"
 
       - name: Deploy manipulator_job (Databricks bundle)
         working-directory: dab

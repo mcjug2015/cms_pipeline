@@ -122,9 +122,12 @@ If you can't run these, say so explicitly rather than claiming the change is ver
 
 The migration **engine** lives in the `spark_sql_migrations` library, not here. This directory holds
 only what this project owns: the `all_spark_migrations/` and `dbr_only_migrations/`
-chains, plus `run_crutch_migrations.py`, a thin wrapper that tells spark_sql_migrations where they
-are. The initial bootstrap chain and the new-migration template ship inside the spark_sql_migrations
-wheel — don't recreate them here.
+chains, and nothing else. They are applied with spark_sql_migrations' own `spark-sql-migrations`
+command, exposed by two `pex_binary` targets in `src/crutch_migrations/BUILD`: `:spark-sql-migrations`
+(databricks-connect, so Databricks; CI's "Apply ddl") and `:spark-sql-migrations-local` (OSS pyspark,
+so local Spark or a Spark Connect server via `SPARK_REMOTE`). `pants run` sandboxes a pex, so pass
+paths to them absolute. The initial bootstrap chain and the new-migration template ship inside the
+spark_sql_migrations wheel — don't recreate them here.
 
 - Migration files are named `YYYYMMDD_N_<slug>_<revision_id>.sql`, and the chain each one
   belongs to is its directory:
@@ -132,8 +135,9 @@ wheel — don't recreate them here.
   - `dbr_only_migrations/` — Databricks-only
   Pick the chain deliberately; SQL that only one engine supports must not be in
   `all_spark_migrations/`. Each file carries `revision_id` / `prev_revision_id` headers
-  forming a single chain; `pants run src/crutch_migrations/run_crutch_migrations.py:lib --
-  create_new_migration --message="..."` writes a correctly-headed one.
+  forming a single chain; `pants run src/crutch_migrations:spark-sql-migrations-local --
+  create_new_migration --message="..." --output-path="$PWD/src/crutch_migrations/all_spark_migrations"`
+  writes a correctly-headed one (then set its `prev_revision_id` to the current head).
 - **Migrations must be idempotent.** The test harness runs them **twice** on purpose
   (`migrated_spark` in `conftest.py`). Note that the version table gates the second pass,
   so that double-run proves the *initial* chain is idempotent but not these ones — a
