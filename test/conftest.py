@@ -116,6 +116,11 @@ def migrated_spark(test_spark, request):
         f" for module {request.module.__name__}"
     )
     if os.environ.get("WHICH_SPARK", "local") == "remote":
+        # not migrating pre-migrated docker spark to save time.
+        # this will fail some remote updates, latest image being deployed
+        # and pulled should fix.
         _shallow_clone_schema(test_spark, "default", schema_name)
-    _migrate_schema(test_spark, schema_name)
+    else:
+        _migrate_schema(test_spark, schema_name)
     yield (test_spark, schema_name)
+    test_spark.sql(f"drop schema if exists spark_catalog.{schema_name} cascade")
