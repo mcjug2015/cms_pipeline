@@ -20,6 +20,24 @@ logger = custom_logging.setup_logging().getLogger(__name__)
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
+def test_collission_one(migrated_spark, request):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
+    spark.sql(
+        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
+    )
+
+
+def test_collission_two(migrated_spark, request):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
+    logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
+    spark.sql(
+        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
+    )
+
+
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
 def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
     spark = migrated_spark[0]
