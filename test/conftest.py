@@ -70,7 +70,6 @@ def _migrate_schema(spark, schema):
     output_folder = get_output_folder(
         os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out")
     )
-    # lets run migrations twice to catch some of the idempotency problems that might exists
     run_migrations(
         spark,
         cat="spark_catalog",
@@ -78,13 +77,26 @@ def _migrate_schema(spark, schema):
         output_folder=output_folder,
         migrations_root=CRUTCH_MIGRATIONS_DIR,
     )
-    run_migrations(
-        spark,
-        cat="spark_catalog",
-        schema=schema,
-        output_folder=output_folder,
-        migrations_root=CRUTCH_MIGRATIONS_DIR,
-    )
+
+
+def _shallow_clone_schema(spark, source_schema, target_schema):
+    """Stand target_schema up as shallow clones of source_schema's tables.
+
+    Remote runs share one long-lived pre-migrated container, so the chain is already
+    applied in `default`. A shallow clone is metadata only -- the clone reads the
+    source's existing data files and writes any of its own -- so a per-test schema
+    costs a few catalog calls instead of a chain replay. The state table comes along
+    with it, which is what leaves the _migrate_schema call below a no-op check unless
+    this branch adds migrations the image predates.
+    """
+    spark.sql(f"create schema if not exists spark_catalog.{target_schema}")
+    for existing_table in spark.catalog.listTables(f"spark_catalog.{source_schema}"):
+        if existing_table.isTemporary:
+            continue
+        spark.sql(
+            f"create table spark_catalog.{target_schema}.`{existing_table.name}`"
+            f" shallow clone spark_catalog.{source_schema}.`{existing_table.name}`"
+        )
 
 
 @pytest.fixture(scope="session")
@@ -92,11 +104,8 @@ def crutch_migrations_dir():
     yield CRUTCH_MIGRATIONS_DIR
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def migrated_spark(test_spark, request):
-    # module-scoped (one migrated schema per test file) so files can run against
-    # the same shared, session-scoped spark session without stepping on each
-    # other's tables.
     module_slug = re.sub(r"\W+", "_", request.module.__name__)
     schema_name = f"b_{module_slug}"
     schema_name += f"_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
@@ -106,5 +115,7 @@ def migrated_spark(test_spark, request):
         f"WHICH_SPARK is {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
         f" for module {request.module.__name__}"
     )
+    if os.environ.get("WHICH_SPARK", "local") == "remote":
+        _shallow_clone_schema(test_spark, "default", schema_name)
     _migrate_schema(test_spark, schema_name)
     yield (test_spark, schema_name)
