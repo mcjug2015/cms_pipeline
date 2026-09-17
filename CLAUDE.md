@@ -13,7 +13,7 @@ migrations and a Databricks Asset Bundle (DAB) deployment. Runs both locally
 ## Laws of unit testing
 - The unit under test should always be a single python function or method from src/.
 - A unit test may not invoke its unit more than once.
-- With the exception of simple getters and setters a test may not invoke any part of src/ other than its unit.
+- With the exception of simple getters, setters, and idempotent logging related methods a test may not invoke any part of src/ other than its unit.
 - Do not create abstract class implementations that only serve tests, use `__abstractmethods__=set()` instead.
 - Always mock/patch other methods from our source that are invoked from the unit under test.
 - Whenever mocking/patching is done, assert_called must verify that the expected call took place, or did not if that is what should have happenned.
@@ -27,6 +27,7 @@ migrations and a Databricks Asset Bundle (DAB) deployment. Runs both locally
 - Avoid negative assertions, esp `assert_not_called..`. It's hard to keep them up to date as them become irrelevant.
 - Don't test raises(exceptions) that are never mentioned in the unit under test. If they would happen in the code below and pass through to the code above, they are not a concern for the test.
 - Strive to cover all src with tests when possible to do so while obeying the rules above.
+- Code that sets up logging should not be tested for reasons for brittleness and inability to catch actual bugs.
 
 
 ## Laws of integration testing
@@ -102,8 +103,13 @@ If you can't run these, say so explicitly rather than claiming the change is ver
   narrow `# type: ignore` (e.g. `delta`, `pyspark.dbutils`) — keep it on the specific
   import line, not blanket-ignored, and add `# noqa: F401` only when the import exists
   purely as a capability probe.
-- **Logging, not prints.** Configure via `spark_sql_migrations.custom_logging`; get a module logger
-  and log at appropriate levels.
+- **Logging, not prints.** Every module takes a plain `logging.getLogger(__name__)` and logs
+  at appropriate levels; it never configures logging at import time. This application's
+  handlers and format live in `src/logging_config.py`, and `setup_logging()` is called only
+  from an entry point — the `cli()` wrappers behind the `run_manipulator` / `run_scratchpad`
+  console scripts, the `__main__` blocks, and `test/conftest.py`. Don't reach into a
+  library's logging config (e.g. `spark_sql_migrations.custom_logging`) for this: libraries
+  inherit our handlers, not the other way round.
 - Keep functions small and single-purpose; prefer pure helpers that are unit-testable
   without a Spark session where possible.
 

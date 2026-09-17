@@ -1,12 +1,11 @@
+import logging
 import os
 import shutil
 import tempfile
 import zipfile
 from contextlib import contextmanager
 
-from spark_sql_migrations import custom_logging
-
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Unwrapper:
