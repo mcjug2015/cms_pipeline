@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import logging
 import os
 import re
 import sys
@@ -10,14 +11,19 @@ from typing import Any, Dict, List, Optional
 from openpyxl import load_workbook
 from pyspark.sql import Row, SparkSession
 from pyspark.sql.functions import current_timestamp
-from spark_sql_migrations import custom_logging
+
+"""
+TODO XXX get_ascending_letters_within_minute below shouldn't come from the lib,
+move it somewhare saner
+"""
 from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_within_minute
 from spark_sql_migrations.spark_utils import get_spark
 
 from src.cms_pipeline.unwrapper import Unwrapper
+from src.logging_config import setup_logging
 from src.utils import convert_to_key, download_s3_zip
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def get_non_empty_cells(row):
@@ -200,6 +206,7 @@ def load_zip_workbook(
 
 
 def main(*args, **kwargs):  # pragma: no cover
+    setup_logging()
     logger.info("loader main begins")
     cat = kwargs.get("cat", None)
     schema = kwargs.get("schema", None)

@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import random
 import re
@@ -6,7 +7,6 @@ import string
 import tempfile
 
 import pytest  # type: ignore
-from spark_sql_migrations import custom_logging
 from spark_sql_migrations.spark_sql.spark_sql import (
     get_ascending_letters_within_minute,
     get_output_folder,
@@ -14,7 +14,12 @@ from spark_sql_migrations.spark_sql.spark_sql import (
 )
 from spark_sql_migrations.spark_utils import get_spark
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+from src.logging_config import setup_logging
+
+# the test session is this application's entry point, so it is where logging gets
+# configured -- see src.logging_config's module docstring.
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # The parent of this project's migration chains, which spark_sql_migrations calls
 # migrations_root. test/BUILD's test_utils depends on the chain resources, so

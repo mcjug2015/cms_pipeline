@@ -1,12 +1,12 @@
+import logging
 import os
 from unittest import mock
 
 import pytest  # type: ignore
-from spark_sql_migrations import custom_logging
 
 from src.cms_pipeline.unwrapper import Unwrapper
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 

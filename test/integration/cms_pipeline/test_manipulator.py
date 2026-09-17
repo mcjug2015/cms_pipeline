@@ -1,8 +1,8 @@
-from spark_sql_migrations import custom_logging
+import logging
 
 from src.cms_pipeline import manipulator
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def test_main_runs_all_benchmarks_and_saves_metrics(migrated_spark, request):

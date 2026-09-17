@@ -1,11 +1,11 @@
+import logging
 import os
 import re
 from urllib.parse import urlparse
 
 from pyspark.sql.session import SparkSession
-from spark_sql_migrations import custom_logging
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def convert_to_key(value: str) -> str:

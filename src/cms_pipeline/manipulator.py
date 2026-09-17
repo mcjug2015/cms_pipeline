@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import json
+import logging
 import os
 import shutil
 import sys
@@ -13,11 +14,12 @@ from uuid import uuid4
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import LongType
-from spark_sql_migrations import custom_logging
 from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_within_minute
 from spark_sql_migrations.spark_utils import get_spark
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+from src.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractBenchmark(ABC):
@@ -266,6 +268,7 @@ class PythonUdfOverhead(AbstractBenchmark):
 
 
 def main(*args, **kwargs):
+    setup_logging()
     logger.info("manipulator main begins")
     cat = kwargs.get("cat", None)
     schema = kwargs.get("schema", None)

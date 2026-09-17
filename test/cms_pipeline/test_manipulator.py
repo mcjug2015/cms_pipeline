@@ -1,7 +1,7 @@
+import logging
 from unittest import mock
 
 import pytest
-from spark_sql_migrations import custom_logging
 
 from src.cms_pipeline import manipulator
 from src.cms_pipeline.manipulator import (
@@ -14,7 +14,7 @@ from src.cms_pipeline.manipulator import (
     SingleRowInsert,
 )
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @mock.patch.multiple(AbstractBenchmark, __abstractmethods__=set())

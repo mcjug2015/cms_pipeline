@@ -1,13 +1,13 @@
+import logging
 import os
 import shutil
 from unittest import mock
 
 from openpyxl.reader.excel import load_workbook
-from spark_sql_migrations import custom_logging
 
 from src.cms_pipeline.loader import load_cms_workbook, load_zip_workbook
 
-logger = custom_logging.setup_logging().getLogger(__name__)
+logger = logging.getLogger(__name__)
 RES_DIR = os.path.join(os.path.dirname(__file__), "res")
 
 
