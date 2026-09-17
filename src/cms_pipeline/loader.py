@@ -219,7 +219,7 @@ def main(*args, **kwargs):  # pragma: no cover
         )
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    main_local_file(spark, cat, schema)
+    main_s3(spark, cat, schema)
     sql_result = spark.sql("select 1")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     logger.info(f"loader main end {results}")
