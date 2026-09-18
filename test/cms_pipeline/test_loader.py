@@ -53,18 +53,29 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
         sheet_name="test sheet name",
         sheet_index=0,
         data_rows=[
-            {"test_key": {"value": "test_val", "prev_only_text_cell": "test heading"}}
+            {
+                "test_key": {
+                    "value": "test_val",
+                    "prev_only_text_cell": "test heading",
+                    "first_col_key": "test123",
+                    "first_col_val": "test456",
+                }
+            }
         ],
     )
     sql_result = spark.sql(f"select * from spark_catalog.{schema}.open_cms_data_kvp;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
-    assert results[0]["load_id"] == "test_load_id"
-    assert results[0]["table_key"] == "test_key"
-    assert results[0]["table_key_simple"] == "test converted key"
-    assert results[0]["table_row_index"] == 0
-    assert results[0]["table_val"] == "test_val"
-    assert results[0]["heading"] == "test heading"
+    assert {
+        "load_id": "test_load_id",
+        "table_key": "test_key",
+        "table_key_simple": "test converted key",
+        "table_row_index": 0,
+        "table_val": "test_val",
+        "heading": "test heading",
+        "first_col_key": "test123",
+        "first_col_val": "test456",
+    }.items() <= results[0].items()
     convert_to_key.assert_called_once()
 
 
@@ -238,14 +249,32 @@ def test_parse_sheet_returns_data_rows():
     data_rows = parse_sheet(workbook["TestSheet"])
     assert data_rows == [
         {
-            "Year": {"value": "2023", "prev_only_text_cell": ""},
-            "Metric": {"value": "TotalEnroll", "prev_only_text_cell": ""},
-            "Value": {"value": "100", "prev_only_text_cell": ""},
+            "Metric": {
+                "value": "TotalEnroll",
+                "prev_only_text_cell": "I AM a Heading",
+                "first_col_key": "Year",
+                "first_col_val": "2023",
+            },
+            "Value": {
+                "value": "100",
+                "prev_only_text_cell": "I AM a Heading",
+                "first_col_key": "Year",
+                "first_col_val": "2023",
+            },
         },
         {
-            "Year": {"value": "2024", "prev_only_text_cell": ""},
-            "Metric": {"value": "TotalEnroll", "prev_only_text_cell": ""},
-            "Value": {"value": "200", "prev_only_text_cell": ""},
+            "Metric": {
+                "value": "TotalEnroll",
+                "prev_only_text_cell": "I AM a Heading",
+                "first_col_key": "Year",
+                "first_col_val": "2024",
+            },
+            "Value": {
+                "value": "200",
+                "prev_only_text_cell": "I AM a Heading",
+                "first_col_key": "Year",
+                "first_col_val": "2024",
+            },
         },
     ]
 
