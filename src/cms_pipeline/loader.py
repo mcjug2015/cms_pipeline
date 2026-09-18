@@ -117,10 +117,12 @@ def parse_sheet(
             and not is_only_text_cell(cells)
         ):
             record = {}
-            for idx, value_cell in enumerate(cells):
-                record[str(col_index_to_header_col_name[idx])] = {
+            for idx, value_cell in enumerate(cells[1:]):
+                record[str(col_index_to_header_col_name[idx + 1])] = {
                     "value": str(value_cell),
                     "prev_only_text_cell": prev_only_text_cell,
+                    "first_col_key": col_index_to_header_col_name[0],
+                    "first_col_val": cells[0],
                 }
             data_rows.append(record)
 
@@ -156,6 +158,8 @@ def insert_kvp_rows(
                     table_row_index=idx,
                     table_val=the_val["value"],
                     heading=the_val["prev_only_text_cell"],
+                    first_col_key=the_val["first_col_key"],
+                    first_col_val=the_val["first_col_val"],
                 )
             )
     df = (
