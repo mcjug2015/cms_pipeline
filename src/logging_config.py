@@ -11,15 +11,11 @@ import os
 LOG_FILE_ENV_VAR = "CMS_PIPELINE_LOG_FILE"
 DEFAULT_LOG_FILENAME = "local_log.log"
 
-FORMAT = (
-    "%(levelname)s %(asctime)s %(filename)s->%(funcName)s->%(lineno)d : %(message)s"
-)
+FORMAT = "%(levelname)s %(asctime)s %(filename)s->%(funcName)s->%(lineno)d : %(message)s"
 
 
 def get_log_file_path() -> str:
-    return os.environ.get(
-        LOG_FILE_ENV_VAR, os.path.join(os.getcwd(), DEFAULT_LOG_FILENAME)
-    )
+    return os.environ.get(LOG_FILE_ENV_VAR, os.path.join(os.getcwd(), DEFAULT_LOG_FILENAME))
 
 
 def build_config() -> dict:

@@ -73,9 +73,7 @@ def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
 def get_workbook_sheet_info_dict(workbook):
     if "Table of Contents" not in workbook:
         sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheetnames}
-        logger.info(
-            "No 'Table of Contents' sheet in workbook, sheet info will be blank"
-        )
+        logger.info("No 'Table of Contents' sheet in workbook, sheet info will be blank")
     else:
         toc_worksheet = workbook["Table of Contents"]
         sheet_info_dict = get_sheet_info_dict(toc_worksheet)
@@ -102,20 +100,10 @@ def parse_sheet(
         row_values = [get_display_value(cell) for cell in row]
         cells = get_non_empty_cells(row_values)
 
-        if (
-            len(cells) > 0
-            and len(cells[0]) > 0
-            and cells[0] != "BLANK"
-            and is_only_text_cell(cells)
-        ):
+        if len(cells) > 0 and len(cells[0]) > 0 and cells[0] != "BLANK" and is_only_text_cell(cells):
             prev_only_text_cell = cells[0]
 
-        if (
-            len(cells) > 0
-            and len(cells[0]) > 0
-            and cells[0] != "BLANK"
-            and not is_only_text_cell(cells)
-        ):
+        if len(cells) > 0 and len(cells[0]) > 0 and cells[0] != "BLANK" and not is_only_text_cell(cells):
             record = {}
             for idx, value_cell in enumerate(cells[1:]):
                 record[str(col_index_to_header_col_name[idx + 1])] = {
@@ -171,9 +159,7 @@ def insert_kvp_rows(
     return len(rows)
 
 
-def load_cms_workbook(
-    spark: SparkSession, cat: str, schema: str, workbook, zip_name, unzipped_name
-):
+def load_cms_workbook(spark: SparkSession, cat: str, schema: str, workbook, zip_name, unzipped_name):
     sheet_info_dict = get_workbook_sheet_info_dict(workbook)
     load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
     for sheet_name, _sheet_desc in sheet_info_dict.items():
@@ -191,9 +177,7 @@ def load_cms_workbook(
         )
 
 
-def load_zip_workbook(
-    spark: SparkSession, cat: str, schema: str, s3_zip_uri: str
-) -> Dict[str, int]:
+def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: str) -> Dict[str, int]:
     with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
         zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
         with Unwrapper().unwrap(zip_path) as xlsx_path:
@@ -218,9 +202,7 @@ def main(*args, **kwargs):  # pragma: no cover
         cat = sys.argv[1]
         schema = sys.argv[2]
     if not cat or not schema:
-        raise ValueError(
-            f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};"
-        )
+        raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
     main_s3(spark, cat, schema)

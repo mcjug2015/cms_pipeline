@@ -24,18 +24,14 @@ def test_collission_one(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    spark.sql(
-        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
-    )
+    spark.sql(f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);")
 
 
 def test_collission_two(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    spark.sql(
-        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
-    )
+    spark.sql(f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);")
 
 
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
@@ -233,9 +229,7 @@ def test_get_workbook_sheet_info_dict_no_toc():
     }
 
 
-@mock.patch(
-    "src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing"
-)
+@mock.patch("src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing")
 def test_get_workbook_sheet_info_dict_toc(get_sheet_info_dict):
     workbook = load_workbook(os.path.join(RES_DIR, "get_sheet_info_dict_sample.xlsx"))
     result = get_workbook_sheet_info_dict(workbook)

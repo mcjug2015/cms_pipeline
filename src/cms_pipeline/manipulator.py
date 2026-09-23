@@ -104,8 +104,7 @@ class ClusterRoundtripLatency(AbstractBenchmark):
             "avg_ms": (total / self.iterations) * 1000,
             "min_ms": durations[0] * 1000,
             "p50_ms": durations[len(durations) // 2] * 1000,
-            "p95_ms": durations[min(len(durations) - 1, int(len(durations) * 0.95))]
-            * 1000,
+            "p95_ms": durations[min(len(durations) - 1, int(len(durations) * 0.95))] * 1000,
             "max_ms": durations[-1] * 1000,
         }
 
@@ -130,11 +129,7 @@ class RangeAggregation(AbstractBenchmark):
         rate. The checksum is returned to prevent the optimizer eliding the work.
         """
         start = time.perf_counter()
-        result = (
-            self.spark.range(0, self.num_rows)
-            .select(F.sum(F.col("id")).alias("total"))
-            .collect()
-        )
+        result = self.spark.range(0, self.num_rows).select(F.sum(F.col("id")).alias("total")).collect()
         elapsed = time.perf_counter() - start
         return {
             "num_rows": self.num_rows,
@@ -206,9 +201,7 @@ class CollectBandwidth(AbstractBenchmark):
         the cluster, the opposite bottleneck from the compute-bound benchmarks.
         """
         # md5 yields a stable 32-char hex string per row for a predictable size.
-        df = self.spark.range(0, self.num_rows).withColumn(
-            "payload", F.md5(F.col("id").cast("string"))
-        )
+        df = self.spark.range(0, self.num_rows).withColumn("payload", F.md5(F.col("id").cast("string")))
         start = time.perf_counter()
         rows = df.collect()
         elapsed = time.perf_counter() - start
@@ -219,9 +212,7 @@ class CollectBandwidth(AbstractBenchmark):
             "rows_collected": len(rows),
             "total_seconds": elapsed,
             "rows_per_second": len(rows) / elapsed if elapsed else float("inf"),
-            "approx_mb_per_second": (
-                (approx_bytes / 1e6) / elapsed if elapsed else float("inf")
-            ),
+            "approx_mb_per_second": ((approx_bytes / 1e6) / elapsed if elapsed else float("inf")),
         }
 
 
@@ -245,25 +236,21 @@ class PythonUdfOverhead(AbstractBenchmark):
         JVM<->Python round-trip overhead for this spark instance's workers.
         """
         start = time.perf_counter()
-        self.spark.range(0, self.num_rows).select(
-            (F.col("id") * F.col("id")).alias("v")
-        ).agg(F.sum(F.col("v"))).collect()
+        self.spark.range(0, self.num_rows).select((F.col("id") * F.col("id")).alias("v")).agg(
+            F.sum(F.col("v"))
+        ).collect()
         native_elapsed = time.perf_counter() - start
 
         square_udf = F.udf(lambda x: x * x, LongType())
         start = time.perf_counter()
-        self.spark.range(0, self.num_rows).select(
-            square_udf(F.col("id")).alias("v")
-        ).agg(F.sum(F.col("v"))).collect()
+        self.spark.range(0, self.num_rows).select(square_udf(F.col("id")).alias("v")).agg(F.sum(F.col("v"))).collect()
         udf_elapsed = time.perf_counter() - start
 
         return {
             "num_rows": self.num_rows,
             "total_seconds": native_elapsed,
             "python_udf_seconds": udf_elapsed,
-            "udf_overhead_ratio": (
-                udf_elapsed / native_elapsed if native_elapsed else float("inf")
-            ),
+            "udf_overhead_ratio": (udf_elapsed / native_elapsed if native_elapsed else float("inf")),
         }
 
 
@@ -276,18 +263,14 @@ def main(*args, **kwargs):
         cat = sys.argv[1]
         schema = sys.argv[2]
     if not cat or not schema:
-        raise ValueError(
-            f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};"
-        )
+        raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
     the_batch_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid4()}"  # noqa: E501
     SingleRowInsert(spark, cat, schema, the_batch_id).execute()
     ClusterRoundtripLatency(spark, cat, schema, the_batch_id, iterations=5).execute()
     RangeAggregation(spark, cat, schema, the_batch_id, num_rows=5000).execute()
-    ShuffleGroupBy(
-        spark, cat, schema, the_batch_id, num_rows=5000, num_groups=2
-    ).execute()
+    ShuffleGroupBy(spark, cat, schema, the_batch_id, num_rows=5000, num_groups=2).execute()
     CollectBandwidth(spark, cat, schema, the_batch_id, num_rows=5000).execute()
     PythonUdfOverhead(spark, cat, schema, the_batch_id, num_rows=5000).execute()
     logger.info("main manipulator end")

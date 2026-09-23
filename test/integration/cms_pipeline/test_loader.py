@@ -15,15 +15,10 @@ def test_load_cms_workbook(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    cms_workbook = load_workbook(
-        os.path.join(RES_DIR, "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx")
-    )
-    load_cms_workbook(
-        spark, "spark_catalog", schema, cms_workbook, "testing.zip", "testing.xlsx"
-    )
+    cms_workbook = load_workbook(os.path.join(RES_DIR, "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx"))
+    load_cms_workbook(spark, "spark_catalog", schema, cms_workbook, "testing.zip", "testing.xlsx")
     sql_result = spark.sql(
-        f"select * from spark_catalog.{schema}.open_cms_data_kvp"
-        " where unzipped_name = 'testing.xlsx';"
+        f"select * from spark_catalog.{schema}.open_cms_data_kvp" " where unzipped_name = 'testing.xlsx';"
     )
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) > 0

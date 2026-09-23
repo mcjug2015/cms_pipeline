@@ -1,5 +1,5 @@
-[black]
-line-length=120
+[tool.black]
+line-length = 120
 
 
 [tool.pytest.ini_options]
@@ -9,6 +9,8 @@ log_cli_level = "INFO"
 
 [tool.isort]
 profile = "black"
+# the black profile pins 88; keep both tools on this repo's 120
+line_length = 120
 
 
 [tool.coverage.run]
