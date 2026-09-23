@@ -25,9 +25,9 @@ def test_load_cms_workbook(migrated_spark, request):
 
 
 @mock.patch("src.cms_pipeline.loader.load_cms_workbook")
-@mock.patch("src.cms_pipeline.loader.load_workbook")
+@mock.patch("src.cms_pipeline.loader.open_workbook")
 @mock.patch("src.cms_pipeline.loader.download_s3_zip")
-def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
+def test_load_zip_workbook(download_s3_zip, open_workbook, load_cms_workbook):
     """load_cms_workbook itself is covered by test_load_cms_workbook above, so it's
     mocked here. This test just validates zip download + nested-zip unwrapping, and
     that load_cms_workbook gets invoked with the unwrapped workbook/zip/file names."""
@@ -40,7 +40,7 @@ def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
         return dest_path
 
     download_s3_zip.side_effect = fake_download_s3_zip
-    load_workbook.return_value = "fake workbook"
+    open_workbook.return_value = "fake workbook"
 
     load_zip_workbook(
         None,
@@ -53,8 +53,8 @@ def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
     assert download_s3_zip.call_args.args[0] is None
     assert download_s3_zip.call_args.args[1] == "s3://fake-bucket/fake-key.zip"
 
-    load_workbook.assert_called_once()
-    unwrapped_xlsx_path = load_workbook.call_args.args[0]
+    open_workbook.assert_called_once()
+    unwrapped_xlsx_path = open_workbook.call_args.args[0]
     assert os.path.basename(unwrapped_xlsx_path) == inner_file_name
 
     load_cms_workbook.assert_called_once_with(

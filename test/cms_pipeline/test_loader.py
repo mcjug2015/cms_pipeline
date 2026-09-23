@@ -95,16 +95,16 @@ def test_insert_kvp_rows_no_rows():
     "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
 @mock.patch("src.cms_pipeline.loader.load_cms_workbook", return_value=1)
-@mock.patch("src.cms_pipeline.loader.load_workbook")
-def test_load_success(load_workbook, load_cms_workbook, unwrap, download_s3_zip):
+@mock.patch("src.cms_pipeline.loader.open_workbook")
+def test_load_success(open_workbook, load_cms_workbook, unwrap, download_s3_zip):
     parse_sheet.return_value = (3, [{"test_key": "test_val"}])
     spark = mock.MagicMock(name="spark")
-    unwrap.return_value.__enter__.return_value = "/fake/xlsx"
+    unwrap.return_value.__enter__.return_value = "/fake/target.xlsx"
 
     result = load_zip_workbook(spark, "test_cat", "test_schema", "test_fake_s3_uri")
 
     assert result == 1
-    load_workbook.assert_called_once()
+    open_workbook.assert_called_once_with("/fake/target.xlsx")
     load_cms_workbook.assert_called_once()
     unwrap.assert_called_once()
     download_s3_zip.assert_called_once()

@@ -8,7 +8,6 @@ import tempfile
 import uuid
 from typing import Any, Dict, List, Optional
 
-from openpyxl import load_workbook
 from pyspark.sql import Row, SparkSession
 from pyspark.sql.functions import current_timestamp
 
@@ -20,6 +19,7 @@ from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_withi
 from spark_sql_migrations.spark_utils import get_spark
 
 from src.cms_pipeline.unwrapper import Unwrapper
+from src.cms_pipeline.workbook_formats import open_workbook
 from src.logging_config import setup_logging
 from src.utils import convert_to_key, download_s3_zip
 
@@ -180,14 +180,14 @@ def load_cms_workbook(spark: SparkSession, cat: str, schema: str, workbook, zip_
 def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: str) -> Dict[str, int]:
     with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
         zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
-        with Unwrapper().unwrap(zip_path) as xlsx_path:
+        with Unwrapper().unwrap(zip_path) as target_path:
             zip_name = os.path.basename(zip_path)
-            unzipped_name = os.path.basename(xlsx_path)
+            unzipped_name = os.path.basename(target_path)
             return load_cms_workbook(
                 spark,
                 cat,
                 schema,
-                load_workbook(xlsx_path, data_only=True, read_only=True),
+                open_workbook(target_path),
                 zip_name,
                 unzipped_name,
             )
@@ -217,27 +217,29 @@ def main_s3(spark, cat, schema):  # pragma: no cover
         spark,
         cat,
         schema,
+        "s3://manipulator-bucket/cms_files/Accountable Care Organization Participants.zip",
+    )
+    """
+    load_zip_workbook(
+        spark,
+        cat,
+        schema,
         "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip",  # noqa: E501
     )
+    """
 
 
 def main_local_file(spark, cat, schema):  # pragma: no cover
     logger.info("loader main local file begins")
-    workbook = load_workbook(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
-        )
-    )
+    file_name = "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx"
+    local_path = os.path.join(os.path.dirname(__file__), "..", "..", file_name)
     load_cms_workbook(
         spark,
         cat,
         schema,
-        workbook,
+        open_workbook(local_path),
         "placeholder.zip",
-        "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+        file_name,
     )
 
 
@@ -246,7 +248,7 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument(
         "--cat",
         help="catalog name to use",
-        default="b_260820_01_dbr_dbc_cat",
+        default="dbr_dbc_cat",
     )
     parser.add_argument(
         "--schema",

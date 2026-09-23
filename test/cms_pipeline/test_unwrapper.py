@@ -33,7 +33,8 @@ def test_unwrap_except(find_target):
     assert not os.path.exists(find_target.call_args.args[1])
 
 
-def test_find_target_recurses_into_nested_zip_and_subdirs(tmp_path):
+@mock.patch("src.cms_pipeline.unwrapper.is_supported_workbook", side_effect=[False, True])
+def test_find_target_recurses_into_nested_zip_and_subdirs(is_supported_workbook, tmp_path):
     # nested.zip holds wrap/inner.zip, which holds deep/sub/TARGET.xlsx; matching is by
     # bare filename, so neither the nesting nor the enclosing subdirs may matter.
     unwrapper = Unwrapper()
@@ -43,11 +44,14 @@ def test_find_target_recurses_into_nested_zip_and_subdirs(tmp_path):
     assert os.path.basename(found) == "TARGET.xlsx"
     with open(found, "rb") as fh:
         assert fh.read() == b"payload-nested"
+    assert is_supported_workbook.call_count == 2
 
 
-def test_find_target_raises_when_no_entry_matches(tmp_path):
+@mock.patch("src.cms_pipeline.unwrapper.is_supported_workbook", return_value=False)
+def test_find_target_raises_when_no_entry_matches(is_supported_workbook, tmp_path):
     # no_target.zip holds a single readme.txt: neither the target nor a nested zip.
     unwrapper = Unwrapper()
 
     with pytest.raises(FileNotFoundError, match="target file not found within"):
         unwrapper.find_target(os.path.join(RES_DIR, "no_target.zip"), str(tmp_path))
+    is_supported_workbook.assert_called_once()
