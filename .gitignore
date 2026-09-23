@@ -17,4 +17,4 @@
 /total_enroll/
 __pycache__/
 *.pyc
-/claude_recent.log
+/claude_recent.md

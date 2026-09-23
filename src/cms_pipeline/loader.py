@@ -219,14 +219,12 @@ def main_s3(spark, cat, schema):  # pragma: no cover
         schema,
         "s3://manipulator-bucket/cms_files/Accountable Care Organization Participants.zip",
     )
-    """
     load_zip_workbook(
         spark,
         cat,
         schema,
         "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip",  # noqa: E501
     )
-    """
 
 
 def main_local_file(spark, cat, schema):  # pragma: no cover
