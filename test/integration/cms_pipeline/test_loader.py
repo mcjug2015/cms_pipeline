@@ -15,24 +15,19 @@ def test_load_cms_workbook(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    cms_workbook = load_workbook(
-        os.path.join(RES_DIR, "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx")
-    )
-    load_cms_workbook(
-        spark, "spark_catalog", schema, cms_workbook, "testing.zip", "testing.xlsx"
-    )
+    cms_workbook = load_workbook(os.path.join(RES_DIR, "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx"))
+    load_cms_workbook(spark, "spark_catalog", schema, cms_workbook, "testing.zip", "testing.xlsx")
     sql_result = spark.sql(
-        f"select * from spark_catalog.{schema}.open_cms_data_kvp"
-        " where unzipped_name = 'testing.xlsx';"
+        f"select * from spark_catalog.{schema}.open_cms_data_kvp" " where unzipped_name = 'testing.xlsx';"
     )
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) > 0
 
 
 @mock.patch("src.cms_pipeline.loader.load_cms_workbook")
-@mock.patch("src.cms_pipeline.loader.load_workbook")
+@mock.patch("src.cms_pipeline.loader.open_workbook")
 @mock.patch("src.cms_pipeline.loader.download_s3_zip")
-def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
+def test_load_zip_workbook(download_s3_zip, open_workbook, load_cms_workbook):
     """load_cms_workbook itself is covered by test_load_cms_workbook above, so it's
     mocked here. This test just validates zip download + nested-zip unwrapping, and
     that load_cms_workbook gets invoked with the unwrapped workbook/zip/file names."""
@@ -45,7 +40,7 @@ def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
         return dest_path
 
     download_s3_zip.side_effect = fake_download_s3_zip
-    load_workbook.return_value = "fake workbook"
+    open_workbook.return_value = "fake workbook"
 
     load_zip_workbook(
         None,
@@ -58,8 +53,8 @@ def test_load_zip_workbook(download_s3_zip, load_workbook, load_cms_workbook):
     assert download_s3_zip.call_args.args[0] is None
     assert download_s3_zip.call_args.args[1] == "s3://fake-bucket/fake-key.zip"
 
-    load_workbook.assert_called_once()
-    unwrapped_xlsx_path = load_workbook.call_args.args[0]
+    open_workbook.assert_called_once()
+    unwrapped_xlsx_path = open_workbook.call_args.args[0]
     assert os.path.basename(unwrapped_xlsx_path) == inner_file_name
 
     load_cms_workbook.assert_called_once_with(

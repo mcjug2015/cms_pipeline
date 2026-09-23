@@ -5,6 +5,8 @@ import tempfile
 import zipfile
 from contextlib import contextmanager
 
+from src.cms_pipeline.workbook_formats import is_supported_workbook
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,9 +19,6 @@ class Unwrapper:
             yield self.find_target(local_zip_path, extract_root)
         finally:
             shutil.rmtree(extract_root, ignore_errors=True)
-
-    def is_file_the_target(self, name):
-        return name.endswith(".xlsx")
 
     def find_target(self, local_zip_path: str, extract_root: str) -> str:
         # zips still to extract; nested zips get appended as they are discovered
@@ -41,7 +40,7 @@ class Unwrapper:
             for root, _dirs, files in os.walk(dest):
                 for name in files:
                     full_path = os.path.join(root, name)
-                    if self.is_file_the_target(name):
+                    if is_supported_workbook(name):
                         return full_path
                     if name.lower().endswith(".zip"):
                         pending.append(full_path)

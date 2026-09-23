@@ -24,18 +24,14 @@ def test_collission_one(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    spark.sql(
-        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
-    )
+    spark.sql(f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);")
 
 
 def test_collission_two(migrated_spark, request):
     spark = migrated_spark[0]
     schema = migrated_spark[1]
     logger.info(f"TEST: {request.node.name}; will be using schema {schema};")
-    spark.sql(
-        f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);"
-    )
+    spark.sql(f"create table spark_catalog.{schema}.i_will_collide(qq string, pp string);")
 
 
 @mock.patch("src.cms_pipeline.loader.convert_to_key", return_value="test converted key")
@@ -99,16 +95,16 @@ def test_insert_kvp_rows_no_rows():
     "src.cms_pipeline.loader.Unwrapper.unwrap",
 )
 @mock.patch("src.cms_pipeline.loader.load_cms_workbook", return_value=1)
-@mock.patch("src.cms_pipeline.loader.load_workbook")
-def test_load_success(load_workbook, load_cms_workbook, unwrap, download_s3_zip):
+@mock.patch("src.cms_pipeline.loader.open_workbook")
+def test_load_success(open_workbook, load_cms_workbook, unwrap, download_s3_zip):
     parse_sheet.return_value = (3, [{"test_key": "test_val"}])
     spark = mock.MagicMock(name="spark")
-    unwrap.return_value.__enter__.return_value = "/fake/xlsx"
+    unwrap.return_value.__enter__.return_value = "/fake/target.xlsx"
 
     result = load_zip_workbook(spark, "test_cat", "test_schema", "test_fake_s3_uri")
 
     assert result == 1
-    load_workbook.assert_called_once()
+    open_workbook.assert_called_once_with("/fake/target.xlsx")
     load_cms_workbook.assert_called_once()
     unwrap.assert_called_once()
     download_s3_zip.assert_called_once()
@@ -233,9 +229,7 @@ def test_get_workbook_sheet_info_dict_no_toc():
     }
 
 
-@mock.patch(
-    "src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing"
-)
+@mock.patch("src.cms_pipeline.loader.get_sheet_info_dict", return_value="testing testing")
 def test_get_workbook_sheet_info_dict_toc(get_sheet_info_dict):
     workbook = load_workbook(os.path.join(RES_DIR, "get_sheet_info_dict_sample.xlsx"))
     result = get_workbook_sheet_info_dict(workbook)

@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 # The parent of this project's migration chains, which spark_sql_migrations calls
 # migrations_root. test/BUILD's test_utils depends on the chain resources, so
 # they are in the sandbox at the same relative path as in the repo.
-CRUTCH_MIGRATIONS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "src", "crutch_migrations"
-)
+CRUTCH_MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "crutch_migrations")
 
 
 def pytest_configure(config):
@@ -56,9 +54,7 @@ def _spark_connect_remote():
     """Point SPARK_REMOTE at the Spark Connect server on SPARK_CONNECT_PORT.
     Assumes it's already running (started separately, outside of pytest)."""
     if os.environ.get("WHICH_SPARK", "local") == "remote":
-        logger.info(
-            f"WHICH_SPARK is remote with value {os.environ.get('WHICH_SPARK', 'local')}; setting spark remote"
-        )
+        logger.info(f"WHICH_SPARK is remote with value {os.environ.get('WHICH_SPARK', 'local')}; setting spark remote")
         host = os.environ.get("SPARK_CONNECT_HOST", "localhost")
         port = os.environ.get("SPARK_CONNECT_PORT", 15002)
         os.environ["SPARK_REMOTE"] = f"sc://{host}:{port}"
@@ -72,9 +68,7 @@ def test_spark(_spark_connect_remote):
 
 
 def _migrate_schema(spark, schema):
-    output_folder = get_output_folder(
-        os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out")
-    )
+    output_folder = get_output_folder(os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out"))
     run_migrations(
         spark,
         cat="spark_catalog",

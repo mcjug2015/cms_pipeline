@@ -55,9 +55,7 @@ def test_single_row_insert(migrated_spark, request):
         schema=schema,
         the_batch_id="7",
     ).benchmark()
-    sql_result = spark.sql(
-        f"select * from spark_catalog.{schema}.test_table order by int_id desc;"
-    )
+    sql_result = spark.sql(f"select * from spark_catalog.{schema}.test_table order by int_id desc;")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     assert len(results) == 1
     assert results[0]["stuff"].startswith("QQPP")
