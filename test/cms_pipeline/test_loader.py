@@ -12,6 +12,7 @@ from src.cms_pipeline.loader import (
     get_workbook_sheet_info_dict,
     insert_kvp_rows,
     is_only_text_cell,
+    load_cms_workbook,
     load_zip_workbook,
     parse_sheet,
 )
@@ -278,3 +279,20 @@ def test_parse_sheet_returns_no_rows():
     data_rows = parse_sheet(workbook["TestSheet"])
 
     assert data_rows == []
+
+
+@mock.patch("src.cms_pipeline.loader.insert_kvp_rows", return_value=2)
+@mock.patch("src.cms_pipeline.loader.parse_sheet", side_effect=[["row of SHEET_A"], ["row of SHEET_B"]])
+@mock.patch(
+    "src.cms_pipeline.loader.get_workbook_sheet_info_dict",
+    return_value={"SHEET_A": "Description A"},
+)
+def test_load_cms_workbook_loads_every_sheet(get_workbook_sheet_info_dict, parse_sheet, insert_kvp_rows):
+    spark = mock.MagicMock(name="spark")
+    workbook = {"SHEET_A": "worksheet A"}
+
+    load_cms_workbook(spark, "test_cat", "test_schema", workbook, "test zip name", "test unzipped")
+
+    get_workbook_sheet_info_dict.assert_called_once_with(workbook)
+    parse_sheet.assert_called_once()
+    insert_kvp_rows.assert_called_once()
