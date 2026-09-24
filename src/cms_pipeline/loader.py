@@ -199,6 +199,12 @@ def main_s3(spark, cat, schema):  # pragma: no cover
         spark,
         cat,
         schema,
+        "s3://manipulator-bucket/cms_files/Accountable Care Organization Skilled Nursing Facility Affiliates.zip",
+    )
+    load_zip_workbook(
+        spark,
+        cat,
+        schema,
         "s3://manipulator-bucket/cms_files/Accountable Care Organization Participants.zip",
     )
     load_zip_workbook(
