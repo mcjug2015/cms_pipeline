@@ -36,8 +36,8 @@ migrations and a Databricks Asset Bundle (DAB) deployment. Runs both locally
 - Integration tests should not contribute to coverage, that should only come from unit tests.
 - Integration tests should test individual tasks the src/ code might be expected to perform.
 - Integration tests are free to mock or patch if using real src/ code would detract from focus.
-- Integration tests always run after unit tests, as a separate `pants test` invocation, never
-  in parallel with them or with each other's invocation — see the quality gates below.
+- Integration tests should seek to test a module, usually by calling main or the method main calls.
+- There should normally be a single integration test per module so performance doesn't suffer.
 
 
 ## The quality gates — ask before running them

@@ -193,24 +193,6 @@ def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: st
             )
 
 
-def main(*args, **kwargs):  # pragma: no cover
-    setup_logging()
-    logger.info("loader main begins")
-    cat = kwargs.get("cat", None)
-    schema = kwargs.get("schema", None)
-    if not cat or not schema:
-        cat = sys.argv[1]
-        schema = sys.argv[2]
-    if not cat or not schema:
-        raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
-    logger.info(f"will be using cat:{cat}; schema:{schema};")
-    spark = get_spark()
-    main_s3(spark, cat, schema)
-    sql_result = spark.sql("select 1")
-    results = [x.asDict() for x in sql_result.toLocalIterator()]
-    logger.info(f"loader main end {results}")
-
-
 def main_s3(spark, cat, schema):  # pragma: no cover
     logger.info("loader main s3 begins")
     load_zip_workbook(
@@ -239,6 +221,24 @@ def main_local_file(spark, cat, schema):  # pragma: no cover
         "placeholder.zip",
         file_name,
     )
+
+
+def main(*args, **kwargs):  # pragma: no cover
+    setup_logging()
+    logger.info("loader main begins")
+    cat = kwargs.get("cat", None)
+    schema = kwargs.get("schema", None)
+    if not cat or not schema:
+        cat = sys.argv[1]
+        schema = sys.argv[2]
+    if not cat or not schema:
+        raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
+    logger.info(f"will be using cat:{cat}; schema:{schema};")
+    spark = get_spark()
+    main_s3(spark, cat, schema)
+    sql_result = spark.sql("select 1")
+    results = [x.asDict() for x in sql_result.toLocalIterator()]
+    logger.info(f"loader main end {results}")
 
 
 if __name__ == "__main__":  # pragma: no cover
