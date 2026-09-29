@@ -5,16 +5,22 @@ from unittest import mock
 from openpyxl.reader.excel import load_workbook
 
 from src.cms_pipeline.loader import (
+    LEDGER_TABLE,
+    STATUS_FAILED,
+    STATUS_LOADED,
     get_decimal_places,
     get_display_value,
     get_non_empty_cells,
     get_sheet_info_dict,
+    get_unloaded_zip_uris,
     get_workbook_sheet_info_dict,
     insert_kvp_rows,
     is_only_text_cell,
     load_cms_workbook,
+    load_new_zips,
     load_zip_workbook,
     parse_sheet,
+    record_load,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,13 +108,72 @@ def test_load_success(open_workbook, load_cms_workbook, unwrap, download_s3_zip)
     spark = mock.MagicMock(name="spark")
     unwrap.return_value.__enter__.return_value = "/fake/target.xlsx"
 
-    result = load_zip_workbook(spark, "test_cat", "test_schema", "test_fake_s3_uri")
+    result = load_zip_workbook(spark, "test_cat", "test_schema", "test_fake_s3_uri", "55")
 
     assert result == 1
     open_workbook.assert_called_once_with("/fake/target.xlsx")
     load_cms_workbook.assert_called_once()
     unwrap.assert_called_once()
     download_s3_zip.assert_called_once()
+
+
+def test_get_unloaded_zip_uris(migrated_spark):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
+    spark.sql(
+        f"insert into spark_catalog.{schema}.{LEDGER_TABLE}(zip_uri, status)"
+        f" values ('s3:/test/test1.zip', '{STATUS_LOADED}');"
+    )
+    s3_files_df = spark.createDataFrame([("s3:/test/test1.zip",), ("s3:/test/test2.zip",)], "path string")
+    with mock.patch("src.cms_pipeline.loader.list_s3_files", return_value=s3_files_df) as list_s3_files:
+        unloaded_zips = get_unloaded_zip_uris(spark, "spark_catalog", schema, "")
+    list_s3_files.assert_called_once()
+    assert unloaded_zips == ["s3:/test/test2.zip"]
+
+
+def test_record_load(migrated_spark):
+    spark = migrated_spark[0]
+    schema = migrated_spark[1]
+    record_load(spark, "spark_catalog", schema, "s3:/test/test1.zip", "abc_123_test", STATUS_LOADED, {"a": 1}, None)
+    sql_result = spark.sql(f"select * from spark_catalog.{schema}.{LEDGER_TABLE};")
+    results = [x.asDict() for x in sql_result.toLocalIterator()]
+    assert len(results) == 1
+    assert {
+        "load_id": "abc_123_test",
+        "zip_uri": "s3:/test/test1.zip",
+        "zip_name": "test1.zip",
+        "status": f"{STATUS_LOADED}",
+        "sheet_count": 1,
+        "row_count": 1,
+    }.items() <= results[0].items()
+
+
+@mock.patch("src.cms_pipeline.loader.get_unloaded_zip_uris", return_value=["s3:/test/test1.zip"])
+@mock.patch("src.cms_pipeline.loader.make_load_id", return_value="abc_123_test")
+@mock.patch("src.cms_pipeline.loader.load_zip_workbook", return_value={"a": 1})
+@mock.patch("src.cms_pipeline.loader.record_load")
+def test_load_new_zips_success(record_load, load_zip_workbook, make_load_id, get_unloaded_zip_uris):
+    result = load_new_zips(None, None, None, None)
+    assert result == {"s3:/test/test1.zip": 1}
+    record_load.assert_called_once()
+    assert {"status": STATUS_LOADED, "error_message": None}.items() <= record_load.call_args.kwargs.items()
+    load_zip_workbook.assert_called_once()
+    make_load_id.assert_called_once()
+    get_unloaded_zip_uris.assert_called_once()
+
+
+@mock.patch("src.cms_pipeline.loader.get_unloaded_zip_uris", return_value=["s3:/test/test1.zip"])
+@mock.patch("src.cms_pipeline.loader.make_load_id", return_value="abc_123_test")
+@mock.patch("src.cms_pipeline.loader.load_zip_workbook", side_effect=ValueError("test exception"))
+@mock.patch("src.cms_pipeline.loader.record_load")
+def test_load_new_zips_fail(record_load, load_zip_workbook, make_load_id, get_unloaded_zip_uris):
+    result = load_new_zips(None, None, None, None)
+    assert result == {}
+    record_load.assert_called_once()
+    assert {"status": STATUS_FAILED, "error_message": "test exception"}.items() <= record_load.call_args.kwargs.items()
+    load_zip_workbook.assert_called_once()
+    make_load_id.assert_called_once()
+    get_unloaded_zip_uris.assert_called_once()
 
 
 def test_get_non_empty_cells():
@@ -291,7 +356,7 @@ def test_load_cms_workbook_loads_every_sheet(get_workbook_sheet_info_dict, parse
     spark = mock.MagicMock(name="spark")
     workbook = {"SHEET_A": "worksheet A"}
 
-    load_cms_workbook(spark, "test_cat", "test_schema", workbook, "test zip name", "test unzipped")
+    load_cms_workbook(spark, "test_cat", "test_schema", workbook, "test zip name", "test unzipped", "77")
 
     get_workbook_sheet_info_dict.assert_called_once_with(workbook)
     parse_sheet.assert_called_once()

@@ -1,0 +1,31 @@
+resources:
+  jobs:
+    cms_files_loader_job:
+      name: cms files loader job (${bundle.target})
+      tasks:
+        - task_key: cms_files_loader_task
+          python_wheel_task:
+            package_name: src.cms_pipeline.manipulator
+            entry_point: run_cms_loader
+            parameters:
+              - ${var.catalog}
+              - ${var.schema}
+              - ${var.cms_zip_prefix}
+          environment_key: cms_files_loader_task_environment
+      # poll prefix, fire job on arrival
+      trigger:
+        pause_status: UNPAUSED
+        file_arrival:
+          url: ${var.cms_zip_prefix}
+          min_time_between_triggers_seconds: 60
+          wait_after_last_change_seconds: 60
+      queue:
+        enabled: true
+      max_concurrent_runs: 1
+      environments:
+        - environment_key: cms_files_loader_task_environment
+          spec:
+            environment_version: "5"
+            dependencies:
+              - ../../dist/src_cms_pipeline_manipulator-0.0.1-py3-none-any.whl
+      performance_target: PERFORMANCE_OPTIMIZED

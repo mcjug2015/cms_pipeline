@@ -9,7 +9,6 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-from uuid import uuid4
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -18,6 +17,7 @@ from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_withi
 from spark_sql_migrations.spark_utils import get_spark
 
 from src.logging_config import setup_logging
+from src.utils import make_load_id
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +266,7 @@ def main(*args, **kwargs):
         raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
     logger.info(f"will be using cat:{cat}; schema:{schema};")
     spark = get_spark()
-    the_batch_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid4()}"  # noqa: E501
+    the_batch_id = make_load_id()
     SingleRowInsert(spark, cat, schema, the_batch_id).execute()
     ClusterRoundtripLatency(spark, cat, schema, the_batch_id, iterations=5).execute()
     RangeAggregation(spark, cat, schema, the_batch_id, num_rows=5000).execute()

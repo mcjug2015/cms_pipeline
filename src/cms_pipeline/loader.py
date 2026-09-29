@@ -1,29 +1,29 @@
 import argparse
-import datetime
 import logging
 import os
 import re
 import sys
 import tempfile
-import uuid
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote, urlparse
 
 from pyspark.sql import Row, SparkSession
-from pyspark.sql.functions import current_timestamp
-
-"""
-TODO XXX get_ascending_letters_within_minute below shouldn't come from the lib,
-move it somewhare saner
-"""
-from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_within_minute
+from pyspark.sql.functions import col, current_timestamp, lit
 from spark_sql_migrations.spark_utils import get_spark
 
 from src.cms_pipeline.unwrapper import Unwrapper
 from src.cms_pipeline.workbook_formats import open_workbook
 from src.logging_config import setup_logging
-from src.utils import convert_to_key, download_s3_zip
+from src.utils import convert_to_key, download_s3_zip, list_s3_files, make_load_id
 
 logger = logging.getLogger(__name__)
+
+# Default only for local/ad-hoc runs; the Databricks job passes its prefix as a
+# job parameter (see dab/resources/cms_files_loader_job.yml).
+DEFAULT_CMS_ZIP_PREFIX = "s3://manipulator-bucket/cms_files/"
+LEDGER_TABLE = "open_cms_load_ledger"
+STATUS_LOADED = "loaded"
+STATUS_FAILED = "failed"
 
 
 def get_non_empty_cells(row):
@@ -159,12 +159,20 @@ def insert_kvp_rows(
     return len(rows)
 
 
-def load_cms_workbook(spark: SparkSession, cat: str, schema: str, workbook, zip_name, unzipped_name):
+def load_cms_workbook(
+    spark: SparkSession,
+    cat: str,
+    schema: str,
+    workbook: Any,
+    zip_name: str,
+    unzipped_name: str,
+    load_id: str,
+) -> Dict[str, int]:
     sheet_info_dict = get_workbook_sheet_info_dict(workbook)
-    load_id = f"{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}_{uuid.uuid4()}"  # noqa: E501
+    row_counts: Dict[str, int] = {}
     for sheet_name, _sheet_desc in sheet_info_dict.items():
         data_rows = parse_sheet(workbook[sheet_name])
-        insert_kvp_rows(
+        row_counts[sheet_name] = insert_kvp_rows(
             spark,
             cat,
             schema,
@@ -175,9 +183,10 @@ def load_cms_workbook(spark: SparkSession, cat: str, schema: str, workbook, zip_
             list(sheet_info_dict.keys()).index(sheet_name),
             data_rows,
         )
+    return row_counts
 
 
-def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: str) -> Dict[str, int]:
+def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: str, load_id: str) -> Dict[str, int]:
     with tempfile.TemporaryDirectory(prefix="cms_dl_") as tmp_dir:
         zip_path = download_s3_zip(spark, s3_zip_uri, tmp_dir)
         with Unwrapper().unwrap(zip_path) as target_path:
@@ -190,29 +199,85 @@ def load_zip_workbook(spark: SparkSession, cat: str, schema: str, s3_zip_uri: st
                 open_workbook(target_path),
                 zip_name,
                 unzipped_name,
+                load_id,
             )
 
 
-def main_s3(spark, cat, schema):  # pragma: no cover
-    logger.info("loader main s3 begins")
-    load_zip_workbook(
-        spark,
-        cat,
-        schema,
-        "s3://manipulator-bucket/cms_files/Accountable Care Organization Skilled Nursing Facility Affiliates.zip",
+def get_unloaded_zip_uris(spark: SparkSession, cat: str, schema: str, prefix_uri: str) -> List[str]:
+    loaded_rows = spark.table(f"{cat}.{schema}.{LEDGER_TABLE}").where(col("status") == STATUS_LOADED)
+    loaded = {row["zip_uri"] for row in loaded_rows.select("zip_uri").toLocalIterator()}
+    listed = list_s3_files(spark, prefix_uri, "*.zip").select("path")
+    available = {unquote(row["path"]) for row in listed.toLocalIterator()}
+    return sorted(available - loaded)
+
+
+def record_load(
+    spark: SparkSession,
+    cat: str,
+    schema: str,
+    zip_uri: str,
+    load_id: str,
+    status: str,
+    row_counts: Dict[str, int],
+    error_message: Optional[str],
+) -> None:
+    row = Row(
+        zip_uri=zip_uri,
+        zip_name=os.path.basename(urlparse(zip_uri).path),
+        load_id=load_id,
+        status=status,
+        sheet_count=len(row_counts),
+        row_count=sum(row_counts.values()),
     )
-    load_zip_workbook(
-        spark,
-        cat,
-        schema,
-        "s3://manipulator-bucket/cms_files/Accountable Care Organization Participants.zip",
+    df = (
+        spark.createDataFrame([row])
+        .withColumn("error_message", lit(error_message).cast("string"))
+        .withColumn("created_at", current_timestamp())
+        .withColumn("updated_at", current_timestamp())
     )
-    load_zip_workbook(
-        spark,
-        cat,
-        schema,
-        "s3://manipulator-bucket/program_stat_me_total_enroll/CMS Program Statistics - Medicare Total Enrollment.zip",  # noqa: E501
-    )
+    df.writeTo(f"{cat}.{schema}.{LEDGER_TABLE}").append()
+
+
+def load_new_zips(spark: SparkSession, cat: str, schema: str, prefix_uri: str) -> Dict[str, int]:
+    row_totals: Dict[str, int] = {}
+    for zip_uri in get_unloaded_zip_uris(spark, cat, schema, prefix_uri):
+        load_id = make_load_id()
+        try:
+            row_counts = load_zip_workbook(spark, cat, schema, zip_uri, load_id)
+        except Exception as exc:
+            # One unreadable zip must not cost the rest of the batch; the ledger
+            # row carries the error and the next trigger retries this uri.
+            # TODO XXX this shouldn't get rerun forever
+            logger.exception(f"load failed for {zip_uri}")
+            record_load(
+                spark=spark,
+                cat=cat,
+                schema=schema,
+                zip_uri=zip_uri,
+                load_id=load_id,
+                status=STATUS_FAILED,
+                row_counts={},
+                error_message=str(exc),
+            )
+            continue
+        record_load(
+            spark=spark,
+            cat=cat,
+            schema=schema,
+            zip_uri=zip_uri,
+            load_id=load_id,
+            status=STATUS_LOADED,
+            row_counts=row_counts,
+            error_message=None,
+        )
+        row_totals[zip_uri] = sum(row_counts.values())
+    logger.info(f"loaded {len(row_totals)} new zips from {prefix_uri}: {row_totals}")
+    return row_totals
+
+
+def main_s3(spark, cat, schema, prefix_uri):  # pragma: no cover
+    logger.info(f"loader main s3 begins for {prefix_uri}")
+    load_new_zips(spark, cat, schema, prefix_uri)
 
 
 def main_local_file(spark, cat, schema):  # pragma: no cover
@@ -226,6 +291,7 @@ def main_local_file(spark, cat, schema):  # pragma: no cover
         open_workbook(local_path),
         "placeholder.zip",
         file_name,
+        make_load_id(),
     )
 
 
@@ -234,14 +300,18 @@ def main(*args, **kwargs):  # pragma: no cover
     logger.info("loader main begins")
     cat = kwargs.get("cat", None)
     schema = kwargs.get("schema", None)
+    prefix_uri = kwargs.get("prefix_uri", None)
     if not cat or not schema:
         cat = sys.argv[1]
         schema = sys.argv[2]
+    if not prefix_uri and len(sys.argv) > 3:
+        prefix_uri = sys.argv[3]
     if not cat or not schema:
         raise ValueError(f"Expecting both cat and schema but got {args}, {kwargs}, {sys.argv};")
-    logger.info(f"will be using cat:{cat}; schema:{schema};")
+    prefix_uri = prefix_uri or DEFAULT_CMS_ZIP_PREFIX
+    logger.info(f"will be using cat:{cat}; schema:{schema}; prefix_uri:{prefix_uri};")
     spark = get_spark()
-    main_s3(spark, cat, schema)
+    main_s3(spark, cat, schema, prefix_uri)
     sql_result = spark.sql("select 1")
     results = [x.asDict() for x in sql_result.toLocalIterator()]
     logger.info(f"loader main end {results}")
@@ -259,5 +329,10 @@ if __name__ == "__main__":  # pragma: no cover
         help="schema name to use",
         default="testing_testing",
     )
+    parser.add_argument(
+        "--prefix-uri",
+        help="s3 prefix scanned for zips that have no 'loaded' ledger row yet",
+        default=DEFAULT_CMS_ZIP_PREFIX,
+    )
     args = parser.parse_args()
-    main(cat=args.cat, schema=args.schema)
+    main(cat=args.cat, schema=args.schema, prefix_uri=args.prefix_uri)
