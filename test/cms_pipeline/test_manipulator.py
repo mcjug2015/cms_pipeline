@@ -115,6 +115,7 @@ def test_python_udf_overhead(test_spark):
 
 
 # Decorators apply bottom-up, so the mocks arrive as arguments in the reverse
+@mock.patch("src.cms_pipeline.manipulator.make_load_id")
 @mock.patch("src.cms_pipeline.manipulator.get_spark")
 @mock.patch("src.cms_pipeline.manipulator.SingleRowInsert")
 @mock.patch("src.cms_pipeline.manipulator.ClusterRoundtripLatency")
@@ -130,6 +131,7 @@ def test_main_calls_execute_on_benchmarks(
     mock_cluster_roundtrip_latency,
     mock_single_row_insert,
     mock_get_spark,
+    mock_make_load_id,
 ):
     """main() should invoke .execute() on every benchmark class."""
     manipulator.main(cat="c", schema="s")
@@ -144,6 +146,10 @@ def test_main_calls_execute_on_benchmarks(
     ):
         benchmark_class.return_value.execute.assert_called_once()
     mock_get_spark.assert_called_once()
+    mock_make_load_id.assert_called_once_with()
+    mock_single_row_insert.assert_called_once_with(
+        mock_get_spark.return_value, "c", "s", mock_make_load_id.return_value
+    )
 
 
 @mock.patch(

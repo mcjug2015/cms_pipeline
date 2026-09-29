@@ -106,10 +106,11 @@ If you can't run these, say so explicitly rather than claiming the change is ver
 - **Logging, not prints.** Every module takes a plain `logging.getLogger(__name__)` and logs
   at appropriate levels; it never configures logging at import time. This application's
   handlers and format live in `src/logging_config.py`, and `setup_logging()` is called only
-  from an entry point — the `cli()` wrappers behind the `run_manipulator` / `run_scratchpad`
-  console scripts, the `__main__` blocks, and `test/conftest.py`. Don't reach into a
-  library's logging config (e.g. `spark_sql_migrations.custom_logging`) for this: libraries
-  inherit our handlers, not the other way round.
+  from an entry point — the `main()` functions behind the `run_manipulator` / `run_cms_loader`
+  console scripts (the `__main__` blocks route through those same `main()`s), and
+  `test/conftest.py`. Don't reach into a library's logging config (e.g.
+  `spark_sql_migrations.custom_logging`) for this: libraries inherit our handlers, not the
+  other way round.
 - Keep functions small and single-purpose; prefer pure helpers that are unit-testable
   without a Spark session where possible.
 

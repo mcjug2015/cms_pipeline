@@ -20,6 +20,3 @@ resources:
             dependencies:
               - ../../dist/src_cms_pipeline_manipulator-0.0.1-py3-none-any.whl
       performance_target: PERFORMANCE_OPTIMIZED
-      permissions:
-        - group_name: users_and_sps
-          level: CAN_MANAGE

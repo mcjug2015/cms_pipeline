@@ -29,7 +29,7 @@ python_distribution(
     entry_points={
         "console_scripts": {
             "run_manipulator": "src.cms_pipeline.manipulator:main",
-            "run_scratchpad": "src.cms_pipeline.loader:main",
+            "run_cms_loader": "src.cms_pipeline.loader:main",
         }
     },
 )

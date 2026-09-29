@@ -6,6 +6,14 @@ bundle:
 include:
   - resources/*.yml
 
+# Applied to every resource in this bundle, so the ACL is declared once rather
+# than repeated in each resources/*.yml. DAB merges it with the IS_OWNER it adds
+# for the deploying principal. Note this is a workspace ACL over the job and
+# dashboard objects only -- Unity Catalog grants live in the migration chains.
+permissions:
+  - group_name: users_and_sps
+    level: CAN_MANAGE
+
 # Values wired into the job below. Override per-target or with `--var`.
 variables:
   catalog:
@@ -14,6 +22,13 @@ variables:
   schema:
     description: Schema the manipulator writes to.
     default: testing_testing
+  cms_zip_prefix:
+    description: >-
+      s3 prefix watched by the file-arrival trigger and scanned for zips that
+      have no 'loaded' row in open_cms_load_ledger yet. This default is the
+      canonical prefix the main target deploys against; dev overrides it with a
+      per-branch one so a branch's test zips never reach main's job.
+    default: s3://manipulator-bucket/cms_files/
   branch:
     description: >-
       Git branch slug this deployment belongs to. Isolates each branch's job
@@ -30,6 +45,11 @@ targets:
   dev:
     mode: development
     default: true
+    variables:
+      # Sibling of cms_files/, never a child: the loader lists its prefix
+      # recursively, so nesting branch zips under the canonical prefix would
+      # feed them to main's job and to main's file-arrival trigger.
+      cms_zip_prefix: s3://manipulator-bucket/cms_files_dev/${var.branch}/
     workspace:
       host: https://dbc-807557d7-311c.cloud.databricks.com
       # Per-branch state path -> each branch manages its own job rather than
