@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# A Spark Connect server with this repo's all_spark_migrations chain already applied.
+# A Spark Connect server with this repo's migration chain already applied.
 #
 #   migrate  applies the chain with a throwaway local Delta Spark, leaving Delta
 #            table directories under /opt/spark-store.
@@ -10,7 +10,7 @@
 # The store has the same absolute path in both stages on purpose: the metastore
 # records each table's LOCATION, so moving the store would orphan every table.
 #
-# Build from the repo root (the migration chains are the context);
+# Build from the repo root (the migration chain is the context);
 # scripts/build_migrated_image.sh does that and builds the base image first.
 
 ARG BASE_IMAGE=spark-connect-test:4.1.0
@@ -22,10 +22,10 @@ FROM python:3.12.3-slim-bookworm AS migrate
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir "pyspark[connect]==4.1.0" "delta-spark==4.3.1" "spark_sql_migrations[local]==0.0.2"
+    && pip install --no-cache-dir "pyspark[connect]==4.1.0" "delta-spark==4.3.1" "spark_sql_migrations[local]==0.0.6"
 
 
-COPY src/crutch_migrations/all_spark_migrations /migrations/all_spark_migrations
+COPY src/migrations /migrations
 
 
 RUN SPARK_WAREHOUSE_DIR=/opt/spark-store/warehouse \
@@ -65,7 +65,7 @@ RUN --mount=type=bind,source=docker/spark-migrated/register_tables.py,target=/tm
     && chmod -R 0777 /opt/spark-store /opt/spark/work-dir/ivy
 
 LABEL org.opencontainers.image.source="https://github.com/mcjug2015/cms_pipeline" \
-      org.opencontainers.image.description="Spark Connect server pre-migrated to cms_pipeline's all_spark_migrations chain" \
+      org.opencontainers.image.description="Spark Connect server pre-migrated to cms_pipeline's migration chain" \
       io.cms-pipeline.migrated.catalog="spark_catalog" \
       io.cms-pipeline.migrated.schema="default"
 

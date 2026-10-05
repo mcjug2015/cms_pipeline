@@ -1,13 +1,8 @@
-# Only the project-owned chains live here. spark_sql_migrations ships the engine,
+# Only the project-owned chain lives here. spark_sql_migrations ships the engine,
 # migrations_initial/ and migration_templates/ inside its own wheel.
 resources(
-    name="all_spark_migrations",
-    sources=["all_spark_migrations/*.sql"],
-)
-
-resources(
-    name="dbr_only_migrations",
-    sources=["dbr_only_migrations/*.sql"],
+    name="migrations",
+    sources=["*.sql"],
 )
 
 # spark_sql_migrations' own console command, once per resolve. `pants run` runs a

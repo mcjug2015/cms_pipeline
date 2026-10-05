@@ -21,5 +21,4 @@ branch = true
 exclude_also = [
     "@(abc\\.)?abstractmethod",
     "def __init__\\(.*\\):\\s*\\S",
-    "def get_\\w*\\(.*\\):\\s*\\S",
 ]

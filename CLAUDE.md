@@ -5,8 +5,8 @@ same gates CI enforces before it is considered done.
 
 ## What this project is
 
-A PySpark / Delta Lake harness that ingests and profiles data, plus SQL "crutch"
-migrations and a Databricks Asset Bundle (DAB) deployment. Runs both locally
+A PySpark / Delta Lake harness that ingests and profiles data, plus a SQL
+migration chain and a Databricks Asset Bundle (DAB) deployment. Runs both locally
 (open-source Spark + Delta) and on Databricks (`databricks-connect`).
 
 
@@ -28,6 +28,11 @@ migrations and a Databricks Asset Bundle (DAB) deployment. Runs both locally
 - Don't test raises(exceptions) that are never mentioned in the unit under test. If they would happen in the code below and pass through to the code above, they are not a concern for the test.
 - Strive to cover all src with tests when possible to do so while obeying the rules above.
 - Code that sets up logging should not be tested for reasons for brittleness and inability to catch actual bugs.
+- Tests in a module are ordered in two groups: first every test whose unit needs no spark session,
+  then every test whose unit does. Within each group, tests follow the order in which their units are
+  defined in the module under test, and the tests of one unit stay together. A unit with tests in both
+  groups appears at its source position in each. Imports, module-level constants and fixtures stay at
+  the top of the file; only the test functions are moved.
 
 
 ## Laws of integration testing
@@ -58,7 +63,7 @@ Pants assembles; bare `pytest` fails with Delta classpath errors).
 ```bash
 # Format + lint + typecheck (black, isort, flake8, mypy) — must be clean.
 # Use the recursive `::` form: a bare `src/` selects only targets directly in src/,
-# silently skipping src/cms_pipeline/, src/crutch_migrations/ and every test subdir.
+# silently skipping src/cms_pipeline/, src/migrations/ and every test subdir.
 pants fmt lint check src/:: test/::
 
 # Run unit tests with coverage (everything under test/ except test/integration)
@@ -125,26 +130,28 @@ If you can't run these, say so explicitly rather than claiming the change is ver
 - Code must work in **both** modes (local OSS Spark and Databricks). Gate DBR-only
   behaviour behind `is_dbr()`, and gate DBR-only imports inside the function that uses them.
 
-## SQL migrations (`src/crutch_migrations/`)
+## SQL migrations (`src/migrations/`)
 
 The migration **engine** lives in the `spark_sql_migrations` library, not here. This directory holds
-only what this project owns: the `all_spark_migrations/` and `dbr_only_migrations/`
-chains, and nothing else. They are applied with spark_sql_migrations' own `spark-sql-migrations`
-command, exposed by two `pex_binary` targets in `src/crutch_migrations/BUILD`: `:spark-sql-migrations`
-(databricks-connect, so Databricks; CI's "Apply ddl") and `:spark-sql-migrations-local` (OSS pyspark,
-so local Spark or a Spark Connect server via `SPARK_REMOTE`). `pants run` sandboxes a pex, so pass
-paths to them absolute. The initial bootstrap chain and the new-migration template ship inside the
-spark_sql_migrations wheel — don't recreate them here.
+only what this project owns: a single migration chain, and nothing else. It is applied with
+spark_sql_migrations' own `spark-sql-migrations` command, exposed by two `pex_binary` targets in
+`src/migrations/BUILD`: `:spark-sql-migrations` (databricks-connect, so Databricks; CI's "Apply ddl")
+and `:spark-sql-migrations-local` (OSS pyspark, so local Spark or a Spark Connect server via
+`SPARK_REMOTE`). `pants run` sandboxes a pex, so pass paths to them absolute. The initial bootstrap
+chain and the new-migration template ship inside the spark_sql_migrations wheel — don't recreate
+them here.
 
-- Migration files are named `YYYYMMDD_N_<slug>_<revision_id>.sql`, and the chain each one
-  belongs to is its directory:
-  - `all_spark_migrations/` — runs everywhere (local + Databricks),
-  - `dbr_only_migrations/` — Databricks-only
-  Pick the chain deliberately; SQL that only one engine supports must not be in
-  `all_spark_migrations/`. Each file carries `revision_id` / `prev_revision_id` headers
-  forming a single chain; `pants run src/crutch_migrations:spark-sql-migrations-local --
-  create_new_migration --message="..." --output-path="$PWD/src/crutch_migrations/all_spark_migrations"`
-  writes a correctly-headed one (then set its `prev_revision_id` to the current head).
+- Migration files are named `YYYYMMDD_N_<slug>_<revision_id>.sql`, and all of them live in this one
+  directory: there is no second chain, and no directory decides where a migration runs. Each file
+  carries `revision_id` / `prev_revision_id` headers forming that single chain;
+  `pants run src/migrations:spark-sql-migrations-local -- create_new_migration --message="..."
+  --output-path="$PWD/src/migrations"` writes a correctly-headed one, chained onto the current head.
+- **Which engine a migration targets is decided inside the migration.** Every file is rendered
+  through jinja with `is_dbr` in the context before it is executed, so SQL only Databricks
+  understands goes inside `{% if is_dbr %}` … `{% endif %}` (add `--add-is-dbr` to
+  `create_new_migration` to get the body pre-wrapped; see `261005_01_privs_and_vol_*.sql`). A
+  migration that renders to no statements is recorded and not executed, which is what lets this
+  project keep one chain and no second head.
 - **Migrations must be idempotent.** The test harness runs them **twice** on purpose
   (`migrated_spark` in `conftest.py`). Note that the version table gates the second pass,
   so that double-run proves the *initial* chain is idempotent but not these ones — a
