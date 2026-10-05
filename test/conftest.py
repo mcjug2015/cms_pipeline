@@ -21,10 +21,10 @@ from src.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# The parent of this project's migration chains, which spark_sql_migrations calls
-# migrations_root. test/BUILD's test_utils depends on the chain resources, so
-# they are in the sandbox at the same relative path as in the repo.
-CRUTCH_MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "crutch_migrations")
+# This project's migration chain, which spark_sql_migrations calls migrations_dir.
+# test/BUILD's test_utils depends on the chain resources, so they are in the
+# sandbox at the same relative path as in the repo.
+MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "migrations")
 
 
 def pytest_configure(config):
@@ -74,7 +74,7 @@ def _migrate_schema(spark, schema):
         cat="spark_catalog",
         schema=schema,
         output_folder=output_folder,
-        migrations_root=CRUTCH_MIGRATIONS_DIR,
+        migrations_dir=MIGRATIONS_DIR,
     )
 
 
@@ -99,8 +99,8 @@ def _shallow_clone_schema(spark, source_schema, target_schema):
 
 
 @pytest.fixture(scope="session")
-def crutch_migrations_dir():
-    yield CRUTCH_MIGRATIONS_DIR
+def migrations_dir():
+    yield MIGRATIONS_DIR
 
 
 @pytest.fixture(scope="function")

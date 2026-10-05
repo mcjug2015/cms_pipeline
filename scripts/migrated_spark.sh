@@ -59,6 +59,6 @@ start_migrated_spark() {
   # is_dbr() true and would send this to Databricks instead of the container.
   # Absolute --migrations-dir: pants runs the pex in a sandbox.
   SPARK_REMOTE="sc://${SPARK_CONNECT_HOST:-localhost}:$SPARK_CONNECT_PORT" \
-    pants run src/crutch_migrations:spark-sql-migrations-local -- run \
-      --migrations-dir="$(cd "$MIGRATED_SPARK_SCRIPT_DIR/.." && pwd)/src/crutch_migrations"
+    pants run src/migrations:spark-sql-migrations-local -- run \
+      --migrations-dir="$(cd "$MIGRATED_SPARK_SCRIPT_DIR/.." && pwd)/src/migrations"
 }
