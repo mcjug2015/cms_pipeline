@@ -12,7 +12,7 @@ from pyspark.sql.functions import col, current_timestamp, lit
 from spark_sql_migrations.spark_utils import get_spark
 
 from src.cms_pipeline.unwrapper import Unwrapper
-from src.cms_pipeline.workbook_formats import open_workbook
+from src.cms_pipeline.workbook_formats import Workbook, Worksheet, open_workbook
 from src.logging_config import setup_logging
 from src.utils import convert_to_key, download_s3_zip, list_s3_files, make_load_id
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # job parameter (see dab/resources/cms_files_loader_job.yml).
 DEFAULT_CMS_ZIP_PREFIX = "s3://manipulator-bucket/cms_files/"
 LEDGER_TABLE = "open_cms_load_ledger"
+TOC_SHEET_NAME = "Table of Contents"
 STATUS_LOADED = "loaded"
 STATUS_FAILED = "failed"
 
@@ -36,56 +37,30 @@ def is_only_text_cell(non_empty_cells: Sequence[str]) -> bool:
     return False
 
 
-def get_decimal_places(number_format: Optional[str]) -> Optional[int]:
-    if not number_format or number_format in ("General", "@"):
-        return None
-    fmt = number_format.split(";")[0]
-    fmt = re.sub(r'"[^"]*"', "", fmt)
-    fmt = re.sub(r"\[[^\]]*\]", "", fmt)
-    match = re.search(r"\.(0+)", fmt)
-    if match:
-        return len(match.group(1))
-    if re.search(r"[0#]", fmt):
-        return 0
-    return None
-
-
-def get_display_value(cell: Any) -> Any:
-    value = cell.value
-    if isinstance(value, float):
-        decimals = get_decimal_places(cell.number_format)
-        if decimals is not None:
-            value = round(value, decimals)
-            if decimals == 0:
-                value = int(value)
-    return value
-
-
-def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
+def get_sheet_info_dict(toc_worksheet: Worksheet) -> Dict[str, str]:
     result = {}
-    for row in toc_worksheet.iter_rows(values_only=True):
+    for row in toc_worksheet.iter_rows():
         cells_w_values = get_non_empty_cells(row)
         if len(cells_w_values) > 1 and cells_w_values[0] != "Table Name":
             result[cells_w_values[0]] = cells_w_values[1]
     return result
 
 
-def get_workbook_sheet_info_dict(workbook) -> Dict[str, str]:
-    if "Table of Contents" not in workbook:
+def get_workbook_sheet_info_dict(workbook: Workbook) -> Dict[str, str]:
+    if TOC_SHEET_NAME not in workbook.sheetnames:
         sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheetnames}
-        logger.info("No 'Table of Contents' sheet in workbook, sheet info will be blank")
+        logger.info(f"No '{TOC_SHEET_NAME}' sheet in workbook, sheet info will be blank")
     else:
-        toc_worksheet = workbook["Table of Contents"]
-        sheet_info_dict = get_sheet_info_dict(toc_worksheet)
+        sheet_info_dict = get_sheet_info_dict(workbook.get_sheet(TOC_SHEET_NAME))
     return sheet_info_dict
 
 
 def parse_sheet(
-    worksheet,
+    worksheet: Worksheet,
 ) -> List[Dict[str, Any]]:
     data_rows: List[Dict[str, Any]] = []
     col_index_to_header_col_name = {}
-    for header_row_idx, row in enumerate(worksheet.iter_rows(values_only=True)):
+    for header_row_idx, row in enumerate(worksheet.iter_rows()):
         cells = get_non_empty_cells(row)
         if cells and len(cells) > 1:
             for idx, header_cell in enumerate(cells):
@@ -97,8 +72,7 @@ def parse_sheet(
 
     prev_only_text_cell = ""
     for idx, row in enumerate(worksheet.iter_rows(min_row=header_row_idx + 2)):
-        row_values = [get_display_value(cell) for cell in row]
-        cells = get_non_empty_cells(row_values)
+        cells = get_non_empty_cells(row)
 
         if len(cells) > 0 and len(cells[0]) > 0 and cells[0] != "BLANK" and is_only_text_cell(cells):
             prev_only_text_cell = cells[0]
@@ -163,7 +137,7 @@ def load_cms_workbook(
     spark: SparkSession,
     cat: str,
     schema: str,
-    workbook: Any,
+    workbook: Workbook,
     zip_name: str,
     unzipped_name: str,
     load_id: str,
@@ -171,7 +145,7 @@ def load_cms_workbook(
     sheet_info_dict = get_workbook_sheet_info_dict(workbook)
     row_counts: Dict[str, int] = {}
     for sheet_name, _sheet_desc in sheet_info_dict.items():
-        data_rows = parse_sheet(workbook[sheet_name])
+        data_rows = parse_sheet(workbook.get_sheet(sheet_name))
         row_counts[sheet_name] = insert_kvp_rows(
             spark,
             cat,
