@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 from urllib.parse import unquote, urlparse
 
 from pyspark.sql import Row, SparkSession
@@ -26,11 +26,11 @@ STATUS_LOADED = "loaded"
 STATUS_FAILED = "failed"
 
 
-def get_non_empty_cells(row):
+def get_non_empty_cells(row: Iterable[Any]) -> List[str]:
     return [str(c).strip() for c in row if c is not None and str(c).strip() != ""]
 
 
-def is_only_text_cell(non_empty_cells) -> bool:
+def is_only_text_cell(non_empty_cells: Sequence[str]) -> bool:
     if len(non_empty_cells) == 1 and bool(re.search(r"[A-Za-z]", non_empty_cells[0])):
         return True
     return False
@@ -50,7 +50,7 @@ def get_decimal_places(number_format: Optional[str]) -> Optional[int]:
     return None
 
 
-def get_display_value(cell) -> Any:
+def get_display_value(cell: Any) -> Any:
     value = cell.value
     if isinstance(value, float):
         decimals = get_decimal_places(cell.number_format)
@@ -70,7 +70,7 @@ def get_sheet_info_dict(toc_worksheet) -> Dict[str, str]:
     return result
 
 
-def get_workbook_sheet_info_dict(workbook):
+def get_workbook_sheet_info_dict(workbook) -> Dict[str, str]:
     if "Table of Contents" not in workbook:
         sheet_info_dict = {sheet_name: "" for sheet_name in workbook.sheetnames}
         logger.info("No 'Table of Contents' sheet in workbook, sheet info will be blank")
@@ -275,12 +275,12 @@ def load_new_zips(spark: SparkSession, cat: str, schema: str, prefix_uri: str) -
     return row_totals
 
 
-def main_s3(spark, cat, schema, prefix_uri):  # pragma: no cover
+def main_s3(spark: SparkSession, cat: str, schema: str, prefix_uri: str) -> None:  # pragma: no cover
     logger.info(f"loader main s3 begins for {prefix_uri}")
     load_new_zips(spark, cat, schema, prefix_uri)
 
 
-def main_local_file(spark, cat, schema):  # pragma: no cover
+def main_local_file(spark: SparkSession, cat: str, schema: str) -> None:  # pragma: no cover
     logger.info("loader main local file begins")
     file_name = "MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx"
     local_path = os.path.join(os.path.dirname(__file__), "..", "..", file_name)
@@ -295,7 +295,7 @@ def main_local_file(spark, cat, schema):  # pragma: no cover
     )
 
 
-def main(*args, **kwargs):  # pragma: no cover
+def main(*args, **kwargs) -> None:  # pragma: no cover
     setup_logging()
     logger.info("loader main begins")
     cat = kwargs.get("cat", None)

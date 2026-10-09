@@ -25,11 +25,6 @@ MIGRATED_SPARK_IMAGE="${MIGRATED_SPARK_IMAGE:-ghcr.io/mcjug2015/cms-pipeline-spa
 MIGRATED_SPARK_PORT="${MIGRATED_SPARK_PORT:-15002}"
 MIGRATED_SPARK_CONTAINER=cms-pipeline-spark-migrated
 
-# Only containers of the migrated image, under any registry or tag. Never the
-# plain spark-connect-test image: the self-hosted CI runner shares this machine's
-# docker, and removing its container would fail a CI job mid-test.
-MIGRATED_SPARK_IMAGE_PATTERN='(^|/)cms-pipeline-spark-migrated(:|@|$)'
-
 # Pull before removing anything, so a failed pull leaves an already-running
 # container alone instead of killing it for nothing.
 echo "Pulling $MIGRATED_SPARK_IMAGE..." >&2
@@ -43,10 +38,21 @@ if ! docker pull "$MIGRATED_SPARK_IMAGE" >&2; then
   return 1 2>/dev/null || exit 1
 fi
 
-# -a: a stopped container still holds the fixed name. Also catches unnamed ones
-# left by earlier versions of this script.
-stale_spark_containers="$(docker ps -a --format '{{.ID}}\t{{.Image}}' |
-  awk -v pattern="$MIGRATED_SPARK_IMAGE_PATTERN" '$2 ~ pattern {print $1}')"
+# -a: a stopped container still holds the fixed name.
+#
+# Matched on the fixed *name*, not on the image: docker prints a bare image ID in
+# `docker ps`'s Image column once the image a container was created from is no
+# longer tagged, and the pull above is what untags it -- a new :latest leaves the
+# previous one dangling. An image pattern therefore misses the container left by
+# the previous run precisely when the published image has changed, and
+# `docker run --name` below then fails with a name conflict.
+#
+# Matching this script's own container name also keeps the sweep off CI's: the
+# self-hosted runner shares this machine's docker and runs this same migrated
+# image deliberately unnamed (see ci.yml), so removing one would fail a CI job
+# mid-test.
+stale_spark_containers="$(docker ps -a --format '{{.ID}}\t{{.Names}}' |
+  awk -v name="$MIGRATED_SPARK_CONTAINER" '$2 == name {print $1}')"
 if [ -n "$stale_spark_containers" ]; then
   echo "Removing old migrated Spark container(s): $(echo "$stale_spark_containers" | tr '\n' ' ')" >&2
   # shellcheck disable=SC2086  # one ID per word, on purpose
