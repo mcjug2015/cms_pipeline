@@ -10,5 +10,6 @@ resources(
     sources=[
         "res/nested_total_enroll.zip",
         "res/MDCR ENROLL AB 15-20_CPS_02ENR_2023.xlsx",
+        "res/MDCR ENROLL AB 1_CPS_02ENR_2023.csv",
     ],
 )
