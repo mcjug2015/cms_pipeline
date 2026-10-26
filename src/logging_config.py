@@ -49,7 +49,7 @@ def build_config() -> dict:
 
 def is_logging_configured() -> bool:
     """
-    whether anything has already claimed the root logger.
+    whether anything has already claimed the root logger
     """
     return bool(logging.getLogger().handlers)
 
