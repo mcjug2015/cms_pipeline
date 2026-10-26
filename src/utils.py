@@ -10,7 +10,7 @@ from pyspark.sql.session import SparkSession
 
 """
 TODO XXX get_ascending_letters_within_minute below shouldn't come from the lib,
-move it somewhare saner
+move it somewhere saner
 """
 from spark_sql_migrations.spark_sql.spark_sql import get_ascending_letters_within_minute
 

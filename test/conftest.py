@@ -10,7 +10,7 @@ import pytest  # type: ignore
 from spark_sql_migrations.spark_sql.spark_sql import (
     get_ascending_letters_within_minute,
     get_output_folder,
-    run_migrations,
+    run_upgrade,
 )
 from spark_sql_migrations.spark_utils import get_spark
 
@@ -69,7 +69,7 @@ def test_spark(_spark_connect_remote):
 
 def _migrate_schema(spark, schema):
     output_folder = get_output_folder(os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out"))
-    run_migrations(
+    run_upgrade(
         spark,
         cat="spark_catalog",
         schema=schema,

@@ -24,7 +24,7 @@ migration chain and a Databricks Asset Bundle (DAB) deployment. Runs both locall
 - If the `__init__` method of the class whose method is under test does anything besides trivial assignment and call to super, it should be mocked, or the functionality moved into its own (private)method.
 - If the `__init__` method and its chain of `super().__init__()` only do simple variable assignment they should not be mocked.
 - Whenever feasible src/ should not be changed in order enable testing.
-- Avoid negative assertions, esp `assert_not_called..`. It's hard to keep them up to date as them become irrelevant.
+- Avoid negative assertions, esp `assert_not_called..`. It's hard to keep them up to date as they become irrelevant.
 - Don't test raises(exceptions) that are never mentioned in the unit under test. If they would happen in the code below and pass through to the code above, they are not a concern for the test.
 - Strive to cover all src with tests when possible to do so while obeying the rules above.
 - Code that sets up logging should not be tested for reasons for brittleness and inability to catch actual bugs.
@@ -33,6 +33,7 @@ migration chain and a Databricks Asset Bundle (DAB) deployment. Runs both locall
   defined in the module under test, and the tests of one unit stay together. A unit with tests in both
   groups appears at its source position in each. Imports, module-level constants and fixtures stay at
   the top of the file; only the test functions are moved.
+- methods whose only concern is formatting and returning strings should not be tested, they are brittle and failures in them hardly ever signal actionable issues(besides needing to fix them yet again)
 
 
 ## Laws of integration testing
