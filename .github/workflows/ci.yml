@@ -197,7 +197,10 @@ jobs:
             # Share the computed catalog and branch slug with later steps (deploy).
             echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
             echo "BRANCH_SLUG=${branch_cat}" >> "$GITHUB_ENV"
-            pants run src/migrations:spark-sql-migrations -- run --cat="${cat_name}" --schema=testing_testing \
+            # cat and schema are render vars rather than CLI args: the engine takes
+            # --template-vals and hands the pairs to every migration's jinja context.
+            pants run src/migrations:spark-sql-migrations -- run \
+              --template-vals="cat=${cat_name},schema=testing_testing" \
               --migrations-dir="${GITHUB_WORKSPACE}/src/migrations"
             echo "done running spark-sql-migrations!!!!"
 

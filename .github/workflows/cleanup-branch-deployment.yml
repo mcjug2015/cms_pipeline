@@ -16,10 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@main
 
-      - name: Setup Python
-        uses: actions/setup-python@main
-        with:
-          python-version: '3.12.3' # Match the repo's interpreter constraints.
+      # No actions/setup-python step, for the same reason ci.yml gives: this
+      # self-hosted runner already has 3.12.3 via pyenv, and pants.toml's
+      # [python-bootstrap] search_path includes "<PYENV>", so Pants finds it.
 
       - name: Initialize Pants
         shell: bash
@@ -34,6 +33,13 @@ jobs:
             bash "$RUNNER_TEMP/get-pants.sh"
           fi
           pants --version
+
+      - name: Generate lockfiles
+        # Both lockfiles are gitignored and actions/checkout's default clean runs
+        # `git clean -ffdx`, so a checked-out workspace has neither. Without them
+        # the wheel build below dies with no lockfile for the python-default
+        # resolve -- which took this whole teardown job down with it.
+        run: pants generate-lockfiles
 
       - name: Generate Wheels
         # The bundle references ../dist/*.whl; build it so `bundle destroy` can
@@ -53,6 +59,36 @@ jobs:
             # Same slug the deploy used, so we tear down the right deployment.
             branch_slug="$(bash ../scripts/branch_slug.sh "$DELETED_BRANCH")"
             databricks bundle destroy -t dev --auto-approve --var="branch=${branch_slug}"
+
+      - name: Drop the branch's catalog
+        # After the bundle destroy, never before: the bundle's job and dashboard
+        # read this catalog. Nothing else drops it, so without this step every
+        # branch that ever ran CI leaves its catalog in Unity Catalog for good.
+        if: always()
+        shell: bash
+        env:
+          # Same service principal as the destroy above. A plain CLI call reads no
+          # bundle, so unlike that step the host has to come from here.
+          DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_HOST: https://dbc-807557d7-311c.cloud.databricks.com
+          DELETED_BRANCH: ${{ github.event.ref }}
+        run: |
+          # The name ci.yml's "Apply ddl" builds for a non-main branch. Always
+          # slug-prefixed, so this can never name main's shared dbr_dbc_cat.
+          branch_slug="$(bash scripts/branch_slug.sh "$DELETED_BRANCH")"
+          if [ -z "$branch_slug" ]; then
+            echo "::error::empty slug for '$DELETED_BRANCH'; refusing to guess a catalog"
+            exit 1
+          fi
+          cat_name="${branch_slug}_dbr_dbc_cat"
+          if databricks catalogs get "$cat_name" >/dev/null 2>&1; then
+            # --force: the chain leaves schemas, tables and a volume in there.
+            databricks catalogs delete "$cat_name" --force
+            echo "dropped $cat_name"
+          else
+            echo "no $cat_name catalog; nothing to drop"
+          fi
 
       - name: Delete the branch's pre-migrated Spark image tag from GHCR
         # Independent of the Databricks teardown: a failed destroy shouldn't

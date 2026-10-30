@@ -1,5 +1,5 @@
 # Only the project-owned chain lives here. spark_sql_migrations ships the engine,
-# migrations_initial/ and migration_templates/ inside its own wheel.
+# migration_templates/ inside its own wheel.
 resources(
     name="migrations",
     sources=["*.sql"],
