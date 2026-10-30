@@ -69,12 +69,13 @@ def test_spark(_spark_connect_remote):
 
 def _migrate_schema(spark, schema):
     output_folder = get_output_folder(os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out"))
+    spark.sql(f"create schema if not exists spark_catalog.{schema}")
+    spark.sql(f"use spark_catalog.{schema}")
     run_upgrade(
         spark,
-        cat="spark_catalog",
-        schema=schema,
         output_folder=output_folder,
         migrations_dir=MIGRATIONS_DIR,
+        template_vals={"cat": "spark_catalog", "schema": schema},
     )
 
 
@@ -114,12 +115,16 @@ def migrated_spark(test_spark, request):
         f"WHICH_SPARK is {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
         f" for module {request.module.__name__}"
     )
-    if os.environ.get("WHICH_SPARK", "local") == "remote":
-        # not migrating pre-migrated docker spark to save time.
-        # this will fail some remote updates, latest image being deployed
-        # and pulled should fix.
-        _shallow_clone_schema(test_spark, "default", schema_name)
-    else:
-        _migrate_schema(test_spark, schema_name)
-    yield (test_spark, schema_name)
-    test_spark.sql(f"drop schema if exists spark_catalog.{schema_name} cascade")
+    try:
+        if os.environ.get("WHICH_SPARK", "local") == "remote":
+            # not migrating pre-migrated docker spark to save time.
+            # this will fail some remote updates, latest image being deployed
+            # and pulled should fix.
+            _shallow_clone_schema(test_spark, "default", schema_name)
+        else:
+            _migrate_schema(test_spark, schema_name)
+        yield (test_spark, schema_name)
+    finally:
+        test_spark.sql(f"drop schema if exists spark_catalog.{schema_name} cascade")
+        # fully qualified names make this irrelevant, but claude cares deeply about it, so here it is.
+        test_spark.sql("use spark_catalog.default")

@@ -59,7 +59,7 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
                 "test_key": {
                     "value": "test_val",
                     "prev_only_text_cell": "test heading",
-                    "first_col_key": "test123",
+                    "first_col_key": "test1234",
                     "first_col_val": "test456",
                 }
             }
@@ -75,7 +75,7 @@ def test_insert_kvp_rows_success(convert_to_key, migrated_spark, request):
         "table_row_index": 0,
         "table_val": "test_val",
         "heading": "test heading",
-        "first_col_key": "test123",
+        "first_col_key": "test1234",
         "first_col_val": "test456",
     }.items() <= results[0].items()
     convert_to_key.assert_called_once()

@@ -138,9 +138,7 @@ only what this project owns: a single migration chain, and nothing else. It is a
 spark_sql_migrations' own `spark-sql-migrations` command, exposed by two `pex_binary` targets in
 `src/migrations/BUILD`: `:spark-sql-migrations` (databricks-connect, so Databricks; CI's "Apply ddl")
 and `:spark-sql-migrations-local` (OSS pyspark, so local Spark or a Spark Connect server via
-`SPARK_REMOTE`). `pants run` sandboxes a pex, so pass paths to them absolute. The initial bootstrap
-chain and the new-migration template ship inside the spark_sql_migrations wheel — don't recreate
-them here.
+`SPARK_REMOTE`). `pants run` sandboxes a pex, so pass paths to them absolute.
 
 - Migration files are named `YYYYMMDD_N_<slug>_<revision_id>.sql`, and all of them live in this one
   directory: there is no second chain, and no directory decides where a migration runs. Each file
@@ -154,9 +152,8 @@ them here.
   migration that renders to no statements is recorded and not executed, which is what lets this
   project keep one chain and no second head.
 - **Migrations must be idempotent.** The test harness runs them **twice** on purpose
-  (`migrated_spark` in `conftest.py`). Note that the version table gates the second pass,
-  so that double-run proves the *initial* chain is idempotent but not these ones — a
-  replay only happens if the version row is cleared. Databricks does **not** support
+  (`migrated_spark` in `conftest.py`). Note that the version table gates the second pass —
+  a replay only happens if the version row is cleared. Databricks does **not** support
   `IF NOT EXISTS` on `ALTER TABLE ... ADD COLUMN` — guard idempotent column adds with a
   SQLSTATE 42710 exit handler (see `260831_03_batch_id_for_metrics_table_*.sql`).
 
