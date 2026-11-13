@@ -90,6 +90,22 @@ jobs:
             echo "no $cat_name catalog; nothing to drop"
           fi
 
+      - name: Drop version tables with no catalog
+        # After "Drop the branch's catalog", never before: a version table is
+        # orphaned by its catalog going away, so this has to see that already done.
+        # It sweeps rather than naming this branch's table, so it also collects what
+        # branches deleted before this step existed, and what a half-failed cleanup
+        # left behind. main's unsuffixed table is never a candidate. See the script.
+        if: always()
+        shell: bash
+        env:
+          # Same service principal as the steps above; a plain CLI call reads no
+          # bundle, so the host has to come from here.
+          DATABRICKS_CLIENT_ID: 4fbddd7d-9f0c-4ae6-a90e-6f15434815a1
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_HOST: https://dbc-807557d7-311c.cloud.databricks.com
+        run: python3 scripts/drop_orphan_version_tables.py
+
       - name: Delete the branch's pre-migrated Spark image tag from GHCR
         # Independent of the Databricks teardown: a failed destroy shouldn't
         # leave the image behind too.
