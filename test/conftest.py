@@ -10,6 +10,7 @@ import pytest  # type: ignore
 from spark_sql_migrations.spark_sql.spark_sql import (
     get_ascending_letters_within_minute,
     get_output_folder,
+    get_version_table_name,
     run_upgrade,
 )
 from spark_sql_migrations.spark_utils import get_spark
@@ -67,16 +68,29 @@ def test_spark(_spark_connect_remote):
     yield get_spark()
 
 
-def _migrate_schema(spark, schema):
+def _migrate_schema(spark, schema, monkeypatch):
+    """apply the chain to `schema`, returning the version table run_upgrade created alongside it.
+
+    monkeypatch rather than a bare os.environ assignment so the appendix does not outlive the
+    test: get_version_table_name reads it on every call, and a remote run never sets one.
+    """
     output_folder = get_output_folder(os.path.join(os.path.dirname(__file__), "..", "..", "test_migrations_out"))
-    spark.sql(f"create schema if not exists spark_catalog.{schema}")
-    spark.sql(f"use spark_catalog.{schema}")
+    monkeypatch.setenv(
+        "VERSION_TABLE_NAME_APPENDIX",
+        f"_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}_{get_ascending_letters_within_minute()}",
+    )
+    # run_upgrade resolves this name from the session's current catalog and database before it
+    # applies anything, so calling the same helper here, from the same session state, gets the
+    # name it is about to create. That database is `default`, not `schema`, which is why the
+    # cascade in migrated_spark never reached it.
+    version_table_name = get_version_table_name(spark)
     run_upgrade(
         spark,
         output_folder=output_folder,
         migrations_dir=MIGRATIONS_DIR,
         template_vals={"cat": "spark_catalog", "schema": schema},
     )
+    return version_table_name
 
 
 def _shallow_clone_schema(spark, source_schema, target_schema):
@@ -105,7 +119,7 @@ def migrations_dir():
 
 
 @pytest.fixture(scope="function")
-def migrated_spark(test_spark, request):
+def migrated_spark(test_spark, request, monkeypatch):
     module_slug = re.sub(r"\W+", "_", request.module.__name__)
     schema_name = f"b_{module_slug}"
     schema_name += f"_{datetime.datetime.today().strftime('%Y%m%d_%H%M')}"
@@ -115,6 +129,9 @@ def migrated_spark(test_spark, request):
         f"WHICH_SPARK is {os.environ.get('WHICH_SPARK', 'local')}; using {schema_name} schema name"
         f" for module {request.module.__name__}"
     )
+    # only the local branch creates one; the remote clone brings the source schema's copy
+    # along inside schema_name, where the cascade below already accounts for it.
+    version_table_name = None
     try:
         if os.environ.get("WHICH_SPARK", "local") == "remote":
             # not migrating pre-migrated docker spark to save time.
@@ -122,9 +139,11 @@ def migrated_spark(test_spark, request):
             # and pulled should fix.
             _shallow_clone_schema(test_spark, "default", schema_name)
         else:
-            _migrate_schema(test_spark, schema_name)
+            version_table_name = _migrate_schema(test_spark, schema_name, monkeypatch)
         yield (test_spark, schema_name)
     finally:
         test_spark.sql(f"drop schema if exists spark_catalog.{schema_name} cascade")
+        if version_table_name is not None:
+            test_spark.sql(f"drop table if exists {version_table_name}")
         # fully qualified names make this irrelevant, but claude cares deeply about it, so here it is.
         test_spark.sql("use spark_catalog.default")

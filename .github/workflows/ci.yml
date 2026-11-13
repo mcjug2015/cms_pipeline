@@ -193,6 +193,18 @@ jobs:
               cat_name="dbr_dbc_cat"
             else
               cat_name="${branch_cat}_dbr_dbc_cat"
+              # The version table does not live in cat_name. The chain never issues
+              # `use catalog` -- every statement is fully qualified from {{cat}} --
+              # so the engine resolves the version table against the session's
+              # default catalog and schema, which is the same pair for every branch.
+              # Unsuffixed, a branch run would read the revision main recorded,
+              # conclude the chain was already applied, and leave its brand new
+              # catalog empty. main keeps the bare name so its existing row still
+              # counts. The slug is [a-z0-9_] and at most 11 chars, so the engine's
+              # word-characters-only check on this value always passes. `pants run`
+              # passes the ambient environment into the pex, same as it does for
+              # DATABRICKS_CLIENT_SECRET above.
+              export VERSION_TABLE_NAME_APPENDIX="_${branch_cat}"
             fi
             # Share the computed catalog and branch slug with later steps (deploy).
             echo "CAT_NAME=${cat_name}" >> "$GITHUB_ENV"
